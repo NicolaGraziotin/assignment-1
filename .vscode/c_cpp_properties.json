@@ -1,0 +1,64 @@
+//
+// !!! WARNING !!! AUTO-GENERATED FILE!
+// PLEASE DO NOT MODIFY IT AND USE "platformio.ini":
+// https://docs.platformio.org/page/projectconf/section_env_build.html#build-flags
+//
+{
+    "configurations": [
+        {
+            "name": "PlatformIO",
+            "includePath": [
+                "/Users/nicolagraziotin/Documents/PlatformIO/Projects/arduino/assignment-1/include",
+                "/Users/nicolagraziotin/Documents/PlatformIO/Projects/arduino/assignment-1/src",
+                "/Users/nicolagraziotin/Documents/PlatformIO/Projects/arduino/assignment-1/.pio/libdeps/uno/EnableInterrupt",
+                "/Users/nicolagraziotin/Documents/PlatformIO/Projects/arduino/assignment-1/.pio/libdeps/uno/EnableInterrupt/utility",
+                "/Users/nicolagraziotin/Documents/PlatformIO/Projects/arduino/assignment-1/.pio/libdeps/uno/LiquidCrystal_I2C",
+                "/Users/nicolagraziotin/.platformio/packages/framework-arduino-avr/libraries/Wire/src",
+                "/Users/nicolagraziotin/Documents/PlatformIO/Projects/arduino/assignment-1/.pio/libdeps/uno/TimerOne",
+                "/Users/nicolagraziotin/.platformio/packages/framework-arduino-avr/cores/arduino",
+                "/Users/nicolagraziotin/.platformio/packages/framework-arduino-avr/variants/standard",
+                "/Users/nicolagraziotin/.platformio/packages/framework-arduino-avr/libraries/EEPROM/src",
+                "/Users/nicolagraziotin/.platformio/packages/framework-arduino-avr/libraries/HID/src",
+                "/Users/nicolagraziotin/.platformio/packages/framework-arduino-avr/libraries/SPI/src",
+                "/Users/nicolagraziotin/.platformio/packages/framework-arduino-avr/libraries/SoftwareSerial/src",
+                ""
+            ],
+            "browse": {
+                "limitSymbolsToIncludedHeaders": true,
+                "path": [
+                    "/Users/nicolagraziotin/Documents/PlatformIO/Projects/arduino/assignment-1/include",
+                    "/Users/nicolagraziotin/Documents/PlatformIO/Projects/arduino/assignment-1/src",
+                    "/Users/nicolagraziotin/Documents/PlatformIO/Projects/arduino/assignment-1/.pio/libdeps/uno/EnableInterrupt",
+                    "/Users/nicolagraziotin/Documents/PlatformIO/Projects/arduino/assignment-1/.pio/libdeps/uno/EnableInterrupt/utility",
+                    "/Users/nicolagraziotin/Documents/PlatformIO/Projects/arduino/assignment-1/.pio/libdeps/uno/LiquidCrystal_I2C",
+                    "/Users/nicolagraziotin/.platformio/packages/framework-arduino-avr/libraries/Wire/src",
+                    "/Users/nicolagraziotin/Documents/PlatformIO/Projects/arduino/assignment-1/.pio/libdeps/uno/TimerOne",
+                    "/Users/nicolagraziotin/.platformio/packages/framework-arduino-avr/cores/arduino",
+                    "/Users/nicolagraziotin/.platformio/packages/framework-arduino-avr/variants/standard",
+                    "/Users/nicolagraziotin/.platformio/packages/framework-arduino-avr/libraries/EEPROM/src",
+                    "/Users/nicolagraziotin/.platformio/packages/framework-arduino-avr/libraries/HID/src",
+                    "/Users/nicolagraziotin/.platformio/packages/framework-arduino-avr/libraries/SPI/src",
+                    "/Users/nicolagraziotin/.platformio/packages/framework-arduino-avr/libraries/SoftwareSerial/src",
+                    ""
+                ]
+            },
+            "defines": [
+                "PLATFORMIO=60200",
+                "ARDUINO_AVR_UNO",
+                "F_CPU=16000000L",
+                "ARDUINO_ARCH_AVR",
+                "ARDUINO=10808",
+                "__AVR_ATmega328P__",
+                ""
+            ],
+            "cStandard": "gnu11",
+            "cppStandard": "gnu++11",
+            "compilerPath": "/Users/nicolagraziotin/.platformio/packages/toolchain-atmelavr/bin/avr-gcc",
+            "compilerArgs": [
+                "-mmcu=atmega328p",
+                ""
+            ]
+        }
+    ],
+    "version": 4
+}
