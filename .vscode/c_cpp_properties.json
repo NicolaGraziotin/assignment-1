@@ -10,8 +10,6 @@
             "includePath": [
                 "/Users/nicolagraziotin/Documents/PlatformIO/Projects/arduino/assignment-1/include",
                 "/Users/nicolagraziotin/Documents/PlatformIO/Projects/arduino/assignment-1/src",
-                "/Users/nicolagraziotin/Documents/PlatformIO/Projects/arduino/assignment-1/.pio/libdeps/uno/EnableInterrupt",
-                "/Users/nicolagraziotin/Documents/PlatformIO/Projects/arduino/assignment-1/.pio/libdeps/uno/EnableInterrupt/utility",
                 "/Users/nicolagraziotin/Documents/PlatformIO/Projects/arduino/assignment-1/.pio/libdeps/uno/LiquidCrystal_I2C",
                 "/Users/nicolagraziotin/.platformio/packages/framework-arduino-avr/libraries/Wire/src",
                 "/Users/nicolagraziotin/Documents/PlatformIO/Projects/arduino/assignment-1/.pio/libdeps/uno/TimerOne",
@@ -28,8 +26,6 @@
                 "path": [
                     "/Users/nicolagraziotin/Documents/PlatformIO/Projects/arduino/assignment-1/include",
                     "/Users/nicolagraziotin/Documents/PlatformIO/Projects/arduino/assignment-1/src",
-                    "/Users/nicolagraziotin/Documents/PlatformIO/Projects/arduino/assignment-1/.pio/libdeps/uno/EnableInterrupt",
-                    "/Users/nicolagraziotin/Documents/PlatformIO/Projects/arduino/assignment-1/.pio/libdeps/uno/EnableInterrupt/utility",
                     "/Users/nicolagraziotin/Documents/PlatformIO/Projects/arduino/assignment-1/.pio/libdeps/uno/LiquidCrystal_I2C",
                     "/Users/nicolagraziotin/.platformio/packages/framework-arduino-avr/libraries/Wire/src",
                     "/Users/nicolagraziotin/Documents/PlatformIO/Projects/arduino/assignment-1/.pio/libdeps/uno/TimerOne",

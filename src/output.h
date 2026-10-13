@@ -3,8 +3,13 @@
 
 void initOutput();
 void setLedState(int ledIndex, bool state);
+void turnOffAllLeds();
+void sleepDisplay();
+void wakeDisplay();
 void printDifficultyLevel(int level);
 void updateWelcomeScroll(bool firstTime);
-void pulseRedLedsInCounterphase(int step);
+void showDifficultyLevel(int level);
+void showGoMessage();
+void pulseRedLedsInCounterphase(long timeMs);
 
 #endif

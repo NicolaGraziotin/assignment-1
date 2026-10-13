@@ -25,11 +25,24 @@ void setLedState(int ledIndex, bool state){
   }
 }
 
-void pulseRedLedsInCounterphase(int step){
-  int brightnessL2 = (step % 256);
+void pulseRedLedsInCounterphase(long timeMs){
+  if (timeMs < 0) {
+    timeMs = 0;
+  }
+  int phase = (timeMs / 8) % 512;
+  int brightnessL2 = (phase < 256) ? phase : (511 - phase);
   int brightnessL3 = 255 - brightnessL2;
   analogWrite(RED_LED_PLAYER_1, brightnessL2);
   analogWrite(RED_LED_PLAYER_2, brightnessL3);
+}
+
+void turnOffAllLeds(){
+  analogWrite(RED_LED_PLAYER_1, 0);
+  analogWrite(RED_LED_PLAYER_2, 0);
+  digitalWrite(GREEN_LED_PLAYER_1, LOW);
+  digitalWrite(GREEN_LED_PLAYER_2, LOW);
+  digitalWrite(RED_LED_PLAYER_1, LOW);
+  digitalWrite(RED_LED_PLAYER_2, LOW);
 }
 
 void printGameTitle(){
@@ -82,4 +95,30 @@ void updateWelcomeScroll(bool firstTime) {
 
   lcd.setCursor(0, 0);
   lcd.print(doubled.substring(pos, pos + LCD_COLS));
+}
+
+// Second LCD line, non-destructive: redrawn only when level changes.
+void showDifficultyLevel(int level){
+  lcd.setCursor(0, 1);
+  lcd.print("Level:              ");
+  lcd.setCursor(7, 1);
+  lcd.print(level);
+}
+
+void showGoMessage(){
+  lcd.clear();
+  lcd.setCursor(0, 0);
+  lcd.print("Go!");
+}
+
+void sleepDisplay(){
+  lcd.clear();
+  lcd.noDisplay();
+  lcd.noBacklight();
+}
+
+void wakeDisplay(){
+  lcd.display();
+  lcd.backlight();
+  lcd.clear();
 }

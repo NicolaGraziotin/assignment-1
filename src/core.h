@@ -16,4 +16,8 @@ void stage2();
 void deepSleep();
 void finalize();
 
+void resetScores();
+int getScoreP1();
+int getScoreP2();
+
 #endif
