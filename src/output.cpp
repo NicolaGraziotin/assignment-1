@@ -25,12 +25,25 @@ void setLedState(int ledIndex, bool state){
   }
 }
 
+#define PULSE_STEP_MS 8
+#define PULSE_HOLD_STEPS 128
+
 void pulseRedLedsInCounterphase(long timeMs){
   if (timeMs < 0) {
     timeMs = 0;
   }
-  int phase = (timeMs / 8) % 512;
-  int brightnessL2 = (phase < 256) ? phase : (511 - phase);
+  long period = 2 * (256 + PULSE_HOLD_STEPS);
+  long step = (timeMs / PULSE_STEP_MS) % period;
+  int brightnessL2;
+  if (step < 256) {
+    brightnessL2 = (int)step;
+  } else if (step < 256 + PULSE_HOLD_STEPS) {
+    brightnessL2 = 255;
+  } else if (step < 512 + PULSE_HOLD_STEPS) {
+    brightnessL2 = 255 - (int)(step - 256 - PULSE_HOLD_STEPS);
+  } else {
+    brightnessL2 = 0;
+  }
   int brightnessL3 = 255 - brightnessL2;
   analogWrite(RED_LED_PLAYER_1, brightnessL2);
   analogWrite(RED_LED_PLAYER_2, brightnessL3);
