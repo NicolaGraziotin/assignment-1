@@ -10,6 +10,7 @@
 #define INTRO_TIMEOUT 10000 // ms waiting for B1+B2 before deep sleep
 #define MAX_NUMBER 3
 
+static int roundNumber = 1;
 static int scoreP1 = 0;
 static int scoreP2 = 0;
 static int lastShownLevel = -1;
@@ -81,11 +82,8 @@ void stage1(){
   if (firstTime){
     showGoMessage();
     Serial.println("Game started.");
-
     int waitTime = random(0, MAX_WAIT + 1); // 0...MAX_WAIT ms
     startTimer(waitTime);
-    int nextNumber = random(1, MAX_NUMBER + 1); // 1...MAX_NUMBER
-    showNextNumber(nextNumber);
   }
   showPlayerScores(scoreP1, scoreP2);
   if (hasSystemTickPassed()) {
@@ -96,14 +94,35 @@ void stage1(){
     }
 
     if (remainingTimeMs <= 0) {
-      Serial.println("Tempo scaduto! Cambio stato...");
-      changeState(INTRO_STATE);
+      changeState(STAGE2_STATE);
     }
     // TODO: implement the game logic for stage 1, including checking button presses and updating scores
   }
 }
 
-void stage2(){}
+void stage2(){
+  bool firstTime = isJustEnteredInState();
+  if (firstTime){
+    showRoundNumber(roundNumber);
+    roundNumber++;
+    int nextNumber = random(1, MAX_NUMBER + 1); // 1...MAX_NUMBER
+    Serial.println("Next number: " + String(nextNumber));
+    showNextNumber(nextNumber);
+    startTimer(T1);
+  }
+
+  if (hasSystemTickPassed()) {
+    if (remainingTimeMs > 0) {
+      remainingTimeMs -= 100;
+      Serial.print("Tempo rimanente: ");
+      Serial.println(remainingTimeMs);
+    }
+
+    if (remainingTimeMs <= 0) {
+      changeState(STAGE1_STATE);
+    }
+  }
+}
 
 void deepSleep(){
   bool firstTime = isJustEnteredInState();

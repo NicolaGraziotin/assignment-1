@@ -143,5 +143,12 @@ void showNextNumber(int number) {
   lcd.setCursor(0, 1);
   lcd.print("Next number: ");
   lcd.print(number);
-  lcd.print("         ");
+  lcd.print("      ");
+}
+
+void showRoundNumber(int round) {
+  lcd.setCursor(0, 0);
+  lcd.print("Round: ");
+  lcd.print(round);
+  lcd.print("      ");
 }
