@@ -75,6 +75,7 @@ void stage1(){
     showGoMessage();
     Serial.println("Game started.");
   }
+  showPlayerScores(scoreP1, scoreP2);
 }
 
 void stage2(){}

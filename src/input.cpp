@@ -20,9 +20,12 @@ static int currentDifficultyLevel = 1;
 /* used for debouncing */
 static long lastButtonPressedTimestamps[NUM_BUTTONS] = {0, 0};
 
+#define PLAYER_1_ID 0
+#define PLAYER_2_ID 1
+
 void buttonHandler(int i);
-void buttonISR0(){ buttonHandler(0); }
-void buttonISR1(){ buttonHandler(1); }
+void buttonISR0(){ buttonHandler(PLAYER_1_ID); }
+void buttonISR1(){ buttonHandler(PLAYER_2_ID); }
 void (*buttonISRs[NUM_BUTTONS])() = { buttonISR0, buttonISR1 };
 void resetInput();
 

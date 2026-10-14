@@ -64,30 +64,6 @@ void printGameTitle(){
     lcd.print("React!");
 }
 
-void printDifficultyLevel(int level) {
-  printGameTitle();
-  lcd.setCursor(1, 2);
-  lcd.print("Difficulty: ");
-  lcd.setCursor(1, 3);
-  switch (level) {
-    case 1:
-      lcd.print("1 (Easy)");
-      break;
-    case 2:
-      lcd.print("2 (Medium)");
-      break;
-    case 3:
-      lcd.print("3 (Hard)");
-      break;
-    case 4:
-      lcd.print("4 (Expert)");
-      break;
-    default:
-      lcd.print("Undefined");
-      break;
-  }
-}
-
 void updateWelcomeScroll(bool firstTime) {
   static String msg = "Welcome to the React! Game. Press Buttons to Start    ";
   static String doubled = msg + msg;
@@ -115,7 +91,25 @@ void showDifficultyLevel(int level){
   lcd.setCursor(0, 1);
   lcd.print("Level:              ");
   lcd.setCursor(7, 1);
-  lcd.print(level);
+  String levelStr;
+  switch (level) {
+    case 1:
+      levelStr = "1 (Easy)";
+      break;
+    case 2:
+      levelStr = "2 (Medium)";
+      break;
+    case 3:
+      levelStr = "3 (Hard)";
+      break;
+    case 4:
+      levelStr = "4 (Expert)";
+      break;
+    default:
+      levelStr = "Undefined";
+      break;
+  }
+  lcd.print(levelStr);
 }
 
 void showGoMessage(){
@@ -134,4 +128,13 @@ void wakeDisplay(){
   lcd.display();
   lcd.backlight();
   lcd.clear();
+}
+
+void showPlayerScores(int player1Score, int player2Score) {
+  lcd.setCursor(0, 3);
+  lcd.print("P1: ");
+  lcd.print(player1Score);
+  lcd.setCursor(15, 3);
+  lcd.print("P2: ");
+  lcd.print(player2Score);
 }
