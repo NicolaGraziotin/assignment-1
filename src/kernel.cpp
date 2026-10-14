@@ -1,3 +1,4 @@
+#include <TimerOne.h>
 #include "kernel.h"
 
 /* current state */
@@ -10,7 +11,27 @@ long enteredStateTime;
 long currentTimeInState;
 
 /* flag which is true if it is the first cycle in that state */
-bool firstCheckInState; 
+bool firstCheckInState;
+
+static volatile bool systemTick = false;
+
+void timerISR() {
+  systemTick = true;
+}
+
+void initKernel() {
+  // Initialize the timer, set the period to 100000 microseconds (0.1 seconds), and attach the interrupt service routine
+  Timer1.initialize(100000);
+  Timer1.attachInterrupt(timerISR);
+}
+
+bool hasSystemTickPassed() {
+  if (systemTick) {
+    systemTick = false;
+    return true;
+  }
+  return false;
+}
 
 /* state management procedures */
 

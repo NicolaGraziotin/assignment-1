@@ -1,5 +1,6 @@
 #include <Arduino.h>
 #include <avr/sleep.h>
+#include <stdlib.h>
 #include "core.h"
 #include "kernel.h"
 #include "config.h"
@@ -7,13 +8,16 @@
 #include "output.h"
 
 #define INTRO_TIMEOUT 10000 // ms waiting for B1+B2 before deep sleep
+#define MAX_NUMBER 3
 
 static int scoreP1 = 0;
 static int scoreP2 = 0;
 static int lastShownLevel = -1;
+static int remainingTimeMs = 0;
 
 void initCore(){
   Serial.begin(9600);
+  srand(analogRead(A1)); // seed random number generator with noise from unconnected analog pin
 }
 
 void resetScores(){
@@ -23,6 +27,10 @@ void resetScores(){
 
 int getScoreP1(){ return scoreP1; }
 int getScoreP2(){ return scoreP2; }
+
+void startTimer(int durationMs) {
+    remainingTimeMs = durationMs;
+}
 
 void intro(){
   bool firstTime = isJustEnteredInState();
@@ -69,13 +77,30 @@ void intro(){
 }
 
 void stage1(){
-  // TODO: rounds logic. For now keep the Go! message visible.
   bool firstTime = isJustEnteredInState();
   if (firstTime){
     showGoMessage();
     Serial.println("Game started.");
+
+    int waitTime = random(0, MAX_WAIT + 1); // 0...MAX_WAIT ms
+    startTimer(waitTime);
+    int nextNumber = random(1, MAX_NUMBER + 1); // 1...MAX_NUMBER
+    showNextNumber(nextNumber);
   }
   showPlayerScores(scoreP1, scoreP2);
+  if (hasSystemTickPassed()) {
+    if (remainingTimeMs > 0) {
+      remainingTimeMs -= 100;
+      Serial.print("Tempo rimanente: ");
+      Serial.println(remainingTimeMs);
+    }
+
+    if (remainingTimeMs <= 0) {
+      Serial.println("Tempo scaduto! Cambio stato...");
+      changeState(INTRO_STATE);
+    }
+    // TODO: implement the game logic for stage 1, including checking button presses and updating scores
+  }
 }
 
 void stage2(){}

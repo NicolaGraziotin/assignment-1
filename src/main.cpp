@@ -10,6 +10,7 @@ void setup() {
   initCore();
   initInput();
   initOutput();
+  initKernel();
   changeState(INTRO_STATE);
 }
 

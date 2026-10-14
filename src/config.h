@@ -8,7 +8,7 @@
 
 // player 1: L1 green, L2 red
 #define GREEN_LED_PLAYER_1 13
-#define RED_LED_PLAYER_1 10 // PWM
+#define RED_LED_PLAYER_1 6 // PWM
 #define BUTTON_PLAYER_1 2
 
 // player 2: L3 red, L4 green

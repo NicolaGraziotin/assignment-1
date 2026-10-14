@@ -11,5 +11,6 @@ void showDifficultyLevel(int level);
 void showGoMessage();
 void pulseRedLedsInCounterphase(long timeMs);
 void showPlayerScores(int player1Score, int player2Score);
+void showNextNumber(int number);
 
 #endif

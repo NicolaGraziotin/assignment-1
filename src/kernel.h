@@ -11,6 +11,7 @@ void initKernel();
 void updateStateTime();
 void changeState(int new_state);
 
+bool hasSystemTickPassed();
 int getCurrentState();
 long getCurrentTimeInState();
 long getEnteredStateTime();

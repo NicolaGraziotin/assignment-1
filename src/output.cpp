@@ -138,3 +138,10 @@ void showPlayerScores(int player1Score, int player2Score) {
   lcd.print("P2: ");
   lcd.print(player2Score);
 }
+
+void showNextNumber(int number) {
+  lcd.setCursor(0, 1);
+  lcd.print("Next number: ");
+  lcd.print(number);
+  lcd.print("         ");
+}
