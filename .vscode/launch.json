@@ -12,9 +12,9 @@
             "type": "platformio-debug",
             "request": "launch",
             "name": "PIO Debug",
-            "executable": "/Users/nicolagraziotin/Documents/PlatformIO/Projects/arduino/assignment-1/.pio/build/uno/firmware.elf",
+            "executable": "/Users/francescomarcatelli/Documents/UNI/IoT/assignment-1/.pio/build/uno/firmware.elf",
             "projectEnvName": "uno",
-            "toolchainBinDir": "/Users/nicolagraziotin/.platformio/packages/toolchain-atmelavr/bin",
+            "toolchainBinDir": "/Users/francescomarcatelli/.platformio/packages/toolchain-atmelavr/bin",
             "internalConsoleOptions": "openOnSessionStart",
             "preLaunchTask": {
                 "type": "PlatformIO",
@@ -25,18 +25,18 @@
             "type": "platformio-debug",
             "request": "launch",
             "name": "PIO Debug (skip Pre-Debug)",
-            "executable": "/Users/nicolagraziotin/Documents/PlatformIO/Projects/arduino/assignment-1/.pio/build/uno/firmware.elf",
+            "executable": "/Users/francescomarcatelli/Documents/UNI/IoT/assignment-1/.pio/build/uno/firmware.elf",
             "projectEnvName": "uno",
-            "toolchainBinDir": "/Users/nicolagraziotin/.platformio/packages/toolchain-atmelavr/bin",
+            "toolchainBinDir": "/Users/francescomarcatelli/.platformio/packages/toolchain-atmelavr/bin",
             "internalConsoleOptions": "openOnSessionStart"
         },
         {
             "type": "platformio-debug",
             "request": "launch",
             "name": "PIO Debug (without uploading)",
-            "executable": "/Users/nicolagraziotin/Documents/PlatformIO/Projects/arduino/assignment-1/.pio/build/uno/firmware.elf",
+            "executable": "/Users/francescomarcatelli/Documents/UNI/IoT/assignment-1/.pio/build/uno/firmware.elf",
             "projectEnvName": "uno",
-            "toolchainBinDir": "/Users/nicolagraziotin/.platformio/packages/toolchain-atmelavr/bin",
+            "toolchainBinDir": "/Users/francescomarcatelli/.platformio/packages/toolchain-atmelavr/bin",
             "internalConsoleOptions": "openOnSessionStart",
             "loadMode": "manual"
         }

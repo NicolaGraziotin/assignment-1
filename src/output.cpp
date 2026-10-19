@@ -120,7 +120,7 @@ void showDifficultyLevel(int level){
 
 void showGoMessage(){
   lcd.clear();
-  lcd.setCursor(0, 0);
+  lcd.setCursor(9, 1);
   lcd.print("Go!");
 }
 
@@ -134,4 +134,37 @@ void wakeDisplay(){
   lcd.display();
   lcd.backlight();
   lcd.clear();
+}
+
+void showTargetNumber(int targetNumber){
+  lcd.clear();
+  lcd.setCursor(9, 1); // Random number between 1 and 9
+  lcd.print(targetNumber);
+}
+
+void showPlayersScore(int scoreP1, int scoreP2){
+  lcd.setCursor(0, 3);
+  lcd.print("P1: ");
+  lcd.print(scoreP1);
+  lcd.setCursor(15, 3);
+  lcd.print("P2: ");
+  lcd.print(scoreP2);
+}
+
+void clearDisplay(){
+  lcd.clear();
+}
+
+void showWinner(int playerIndex){
+  lcd.clear();
+  if (playerIndex == 0) {
+    lcd.setCursor(6, 1);
+    lcd.print("No Winner!");
+    return;
+  }
+  lcd.setCursor(7, 1);
+  lcd.print("Player ");
+  lcd.print(playerIndex);
+  lcd.setCursor(7, 2);
+  lcd.print("Wins!");
 }

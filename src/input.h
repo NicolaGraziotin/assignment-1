@@ -10,5 +10,5 @@ void updateDifficultyLevel();
 int getDifficultyLevel();
 void inputPrepareForDeepSleep();
 void inputResumeFromDeepSleep();
- 
+int getPlayerClicks(int playerIndex);
 #endif

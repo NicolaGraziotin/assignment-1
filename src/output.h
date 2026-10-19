@@ -11,5 +11,9 @@ void updateWelcomeScroll(bool firstTime);
 void showDifficultyLevel(int level);
 void showGoMessage();
 void pulseRedLedsInCounterphase(long timeMs);
+void showTargetNumber(int targetNumber);
+void showPlayersScore(int scoreP1, int scoreP2);
+void clearDisplay();
+void showWinner(int playerIndex);
 
 #endif

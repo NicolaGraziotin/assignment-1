@@ -13,6 +13,7 @@
 
 uint8_t inputPins[NUM_BUTTONS] = {BUTTON_PLAYER_1, BUTTON_PLAYER_2};
 volatile bool buttonPressed[NUM_BUTTONS] = {false, false};
+static volatile int clickCount[NUM_BUTTONS] = {0, 0};
 
 /* difficulty level 1..4 selected with Pot before the game starts */
 static int currentDifficultyLevel = 1;
@@ -32,7 +33,10 @@ void buttonHandler(int i){
     lastButtonPressedTimestamps[i] = ts;
     int status = digitalRead(inputPins[i]);
     if (status == HIGH && !buttonPressed[i]) {
-        buttonPressed[i] = true;
+      buttonPressed[i] = true;
+    }
+    else {
+      clickCount[i]++;
     }
   }
 }
@@ -50,6 +54,7 @@ void resetInput(){
   for (int i = 0; i < NUM_BUTTONS; i++) {
     buttonPressed[i] = false;
     lastButtonPressedTimestamps[i] = ts;
+    clickCount[i] = 0;
   }
 }
 
@@ -100,4 +105,14 @@ void inputResumeFromDeepSleep(){
     attachInterrupt(digitalPinToInterrupt(inputPins[i]), buttonISRs[i], CHANGE);
   }
   resetInput();
+}
+
+int getPlayerClicks(int playerIndex){
+  if (playerIndex < 0 || playerIndex >= NUM_BUTTONS) {
+    return 0;
+  }
+  noInterrupts();
+  int count = clickCount[playerIndex];
+  interrupts();
+  return count;
 }
