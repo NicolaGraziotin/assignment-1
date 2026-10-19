@@ -13,7 +13,10 @@
 #define NUM_LEVELS 4
 
 
-static volatile bool timerExpiredFlag = false;
+static unsigned long stageTimerStart = 0;
+static unsigned long stageTimerDuration = 0;
+static bool stageTimerRunning = false;
+
 
 uint8_t inputPins[NUM_BUTTONS] = {BUTTON_PLAYER_1, BUTTON_PLAYER_2};
 volatile bool buttonPressed[NUM_BUTTONS] = {false, false};
@@ -31,19 +34,27 @@ void buttonISR1(){ buttonHandler(1); }
 void (*buttonISRs[NUM_BUTTONS])() = { buttonISR0, buttonISR1 };
 void resetInput();
 
-void buttonHandler(int i){
-  long ts = millis();
-  if (ts - lastButtonPressedTimestamps[i] > BOUNCING_TIME){
-    lastButtonPressedTimestamps[i] = ts;
+
+void buttonHandler(int i) {
+    unsigned long ts = millis();
+
+    if (ts - lastButtonPressedTimestamps[i] < BOUNCING_TIME) {
+        return;
+    }
+
     int status = digitalRead(inputPins[i]);
-    if (status == HIGH && !buttonPressed[i]) {
-      buttonPressed[i] = true;
+
+    // Accetta soltanto il fronte di salita.
+    if (status == HIGH) {
+        lastButtonPressedTimestamps[i] = ts;
+
+        if (!buttonPressed[i]) {
+            buttonPressed[i] = true;
+            clickCount[i]++;
+        }
     }
-    else {
-      clickCount[i]++;
-    }
-  }
 }
+
 
 void initInput(){
   for (int i = 0; i < NUM_BUTTONS; i++) {
@@ -121,27 +132,25 @@ int getPlayerClicks(int playerIndex){
   return count;
 }
 
-// ISR privata eseguita da TimerOne
-static void onTimerExpiredISR() {
-  timerExpiredFlag = true;
-}
-
 void startStageTimer(unsigned long durationMs) {
-  timerExpiredFlag = false;
-  Timer1.initialize(durationMs * 1000UL); // converte ms in us
-  Timer1.attachInterrupt(onTimerExpiredISR);
+    stageTimerStart = millis();
+    stageTimerDuration = durationMs;
+    stageTimerRunning = true;
 }
 
 void stopStageTimer() {
-  Timer1.detachInterrupt();
-  Timer1.stop();
-  timerExpiredFlag = false;
+    stageTimerRunning = false;
 }
 
 bool isStageTimerExpired() {
-  return timerExpiredFlag;
+    if (!stageTimerRunning) {
+        return false;
+    }
+
+    return (unsigned long)(millis() - stageTimerStart)
+           >= stageTimerDuration;
 }
 
 void resetStageTimerFlag() {
-  timerExpiredFlag = false;
+    stageTimerRunning = false;
 }

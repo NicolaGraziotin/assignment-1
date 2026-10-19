@@ -93,8 +93,26 @@ void stage1() {
     // 3. Generazione e avvio del timer
     randomSeed(micros());
     unsigned long goTimeMs = random(2000, MAX_WAIT);
-    
     startStageTimer(goTimeMs);
+
+    Serial.print("Random wait time before GO: ");
+    Serial.println(goTimeMs);
+
+    Serial.print("Flag subito dopo avvio: ");
+    Serial.println(isStageTimerExpired());
+  }
+
+  if (isStageTimerExpired()) {
+    Serial.println("TIMER SCADUTO");
+    stopStageTimer();
+
+    targetNumber = random(1, 4);
+    showTargetNumber(targetNumber);
+    showPlayersScore(scoreP1, scoreP2);
+    resetInput();
+
+    changeState(STAGE2_STATE);
+    return;
   }
 
   // 1. Fase di attesa casuale e controllo Falsa Partenza
