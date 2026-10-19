@@ -155,16 +155,32 @@ void clearDisplay(){
   lcd.clear();
 }
 
-void showWinner(int playerIndex){
-  lcd.clear();
-  if (playerIndex == 0) {
-    lcd.setCursor(6, 1);
-    lcd.print("No Winner!");
-    return;
+void showWinner(int playerIndex, bool firstTime){
+  static String msg = "Game Over! - The Winner is P" + String(playerIndex) + "    ";
+  static String doubled = msg + msg;
+  static int pos = 0;
+  static unsigned long last = 0;
+
+  if (firstTime) {
+    lcd.clear();
+    pos = 0;
+    last = millis();
+  } else {
+    if (millis() - last < SCROLL_INTERVAL) {
+      return;
+    }
+    last = millis();
+    pos = (pos + 1) % msg.length();
   }
-  lcd.setCursor(7, 1);
-  lcd.print("Player ");
-  lcd.print(playerIndex);
-  lcd.setCursor(7, 2);
-  lcd.print("Wins!");
+
+  lcd.setCursor(0, 1);
+  lcd.print(doubled.substring(pos, pos + LCD_COLS));
+}
+
+void showTie(bool firstTime){
+  if (firstTime) {
+    lcd.clear();
+    lcd.setCursor(2, 1);
+    lcd.print("Game Over! - Tie");
+  }
 }

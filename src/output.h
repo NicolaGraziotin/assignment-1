@@ -14,6 +14,7 @@ void pulseRedLedsInCounterphase(long timeMs);
 void showTargetNumber(int targetNumber);
 void showPlayersScore(int scoreP1, int scoreP2);
 void clearDisplay();
-void showWinner(int playerIndex);
+void showWinner(int playerIndex, bool firstTime);
+void showTie(bool firstTime);
 
 #endif

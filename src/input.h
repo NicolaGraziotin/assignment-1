@@ -11,4 +11,8 @@ int getDifficultyLevel();
 void inputPrepareForDeepSleep();
 void inputResumeFromDeepSleep();
 int getPlayerClicks(int playerIndex);
+void startStageTimer(unsigned long durationMs);
+void stopStageTimer();
+bool isStageTimerExpired();
+void resetStageTimerFlag();
 #endif

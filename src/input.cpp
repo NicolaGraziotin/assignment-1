@@ -1,4 +1,5 @@
 #include <Arduino.h>
+#include <TimerOne.h>
 #include "config.h"
 
 // #define __DEBUG__
@@ -10,6 +11,9 @@
 
 #define BOUNCING_TIME 100
 #define NUM_LEVELS 4
+
+
+static volatile bool timerExpiredFlag = false;
 
 uint8_t inputPins[NUM_BUTTONS] = {BUTTON_PLAYER_1, BUTTON_PLAYER_2};
 volatile bool buttonPressed[NUM_BUTTONS] = {false, false};
@@ -115,4 +119,29 @@ int getPlayerClicks(int playerIndex){
   int count = clickCount[playerIndex];
   interrupts();
   return count;
+}
+
+// ISR privata eseguita da TimerOne
+static void onTimerExpiredISR() {
+  timerExpiredFlag = true;
+}
+
+void startStageTimer(unsigned long durationMs) {
+  timerExpiredFlag = false;
+  Timer1.initialize(durationMs * 1000UL); // converte ms in us
+  Timer1.attachInterrupt(onTimerExpiredISR);
+}
+
+void stopStageTimer() {
+  Timer1.detachInterrupt();
+  Timer1.stop();
+  timerExpiredFlag = false;
+}
+
+bool isStageTimerExpired() {
+  return timerExpiredFlag;
+}
+
+void resetStageTimerFlag() {
+  timerExpiredFlag = false;
 }
