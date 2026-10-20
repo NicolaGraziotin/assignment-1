@@ -47,11 +47,8 @@ void buttonHandler(int i) {
     // Accetta soltanto il fronte di salita.
     if (status == HIGH) {
         lastButtonPressedTimestamps[i] = ts;
-
-        if (!buttonPressed[i]) {
-            buttonPressed[i] = true;
-            clickCount[i]++;
-        }
+        buttonPressed[i] = true;
+        clickCount[i]++;
     }
 }
 

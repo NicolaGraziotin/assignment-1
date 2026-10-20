@@ -146,13 +146,22 @@ void showPlayersScore(int scoreP1, int scoreP2){
   lcd.setCursor(0, 3);
   lcd.print("P1: ");
   lcd.print(scoreP1);
-  lcd.setCursor(15, 3);
+  lcd.setCursor(14, 3);
   lcd.print("P2: ");
   lcd.print(scoreP2);
 }
 
 void clearDisplay(){
   lcd.clear();
+}
+
+void showRoundWinner(int playerIndex, bool firstTime){
+  if (firstTime) {
+    lcd.clear();
+    lcd.setCursor(2, 1);
+    lcd.print("Round Winner: P");
+    lcd.print(playerIndex);
+  }
 }
 
 void showWinner(int playerIndex, bool firstTime){
@@ -177,10 +186,24 @@ void showWinner(int playerIndex, bool firstTime){
   lcd.print(doubled.substring(pos, pos + LCD_COLS));
 }
 
-void showTie(bool firstTime){
+void showTieGameMessage(bool firstTime){
+  static String msg = "Game Over! - Tie    ";
+  static String doubled = msg + msg;
+  static int pos = 0;
+  static unsigned long last = 0;
+
   if (firstTime) {
     lcd.clear();
-    lcd.setCursor(2, 1);
-    lcd.print("Game Over! - Tie");
+    pos = 0;
+    last = millis();
+  } else {
+    if (millis() - last < SCROLL_INTERVAL) {
+      return;
+    }
+    last = millis();
+    pos = (pos + 1) % msg.length();
   }
+
+  lcd.setCursor(0, 1);
+  lcd.print(doubled.substring(pos, pos + LCD_COLS));
 }

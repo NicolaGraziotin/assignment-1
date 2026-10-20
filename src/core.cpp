@@ -94,16 +94,9 @@ void stage1() {
     randomSeed(micros());
     unsigned long goTimeMs = random(2000, MAX_WAIT);
     startStageTimer(goTimeMs);
-
-    Serial.print("Random wait time before GO: ");
-    Serial.println(goTimeMs);
-
-    Serial.print("Flag subito dopo avvio: ");
-    Serial.println(isStageTimerExpired());
   }
 
   if (isStageTimerExpired()) {
-    Serial.println("TIMER SCADUTO");
     stopStageTimer();
 
     targetNumber = random(1, 4);
@@ -140,7 +133,6 @@ void stage1() {
     return; // Continua ad attendere lo scadere del timer
   }
 
-  // 2. MOMENTO DEL VIA! Il timer di attesa casuale è scaduto
   stopStageTimer();
 
   targetNumber = random(1, 4);
@@ -151,13 +143,15 @@ void stage1() {
   changeState(STAGE2_STATE);
 }
 
-#define RESULT_DISPLAY_TIME 10000 // 10 secondi per visualizzazione risultato
+#define ROUND_DISPLAY_TIME 2000       // 2 secondi per il vincitore del round o penalità
+#define GAME_OVER_DISPLAY_TIME 10000  // 10 secondi per il Game Over finale
 
 void stage2() {
   bool firstTime = isJustEnteredInState();
   static bool roundEnded = false;
   static unsigned long roundEndTime = 0;
-  static int currentWinner = 0;
+  static int currentRoundWinner = 0; // >0 se un giocatore ha vinto il round, 0 se penalità, -1 se Game Over per timeout
+  static int gameOverWinner =     0; // Vincitore finale della partita per timeout (1, 2 o 0 per tie)
 
   if (firstTime) {
     Serial.println("Stage 2 started.");
@@ -169,25 +163,55 @@ void stage2() {
     startStageTimer(T1);
   }
 
-  // Gestione della pausa asincrona di fine round
+  // Gestione della pausa asincrona di fine round o fine partita
   if (roundEnded) {
-    if (currentWinner != 0) showWinner(currentWinner, false);
-    if (millis() - roundEndTime >= RESULT_DISPLAY_TIME) {
+    unsigned long currentDisplayTime = ROUND_DISPLAY_TIME;
+
+    if (currentRoundWinner > 0) {
+      showRoundWinner(currentRoundWinner, false);
+      currentDisplayTime = ROUND_DISPLAY_TIME;
+    } else if (currentRoundWinner == 0) {
+      // Penalità per click in eccesso
+      currentDisplayTime = ROUND_DISPLAY_TIME;
+    } else if (currentRoundWinner == -1) {
+      // Game Over finale (10 secondi)
+      currentDisplayTime = GAME_OVER_DISPLAY_TIME;
+      if (gameOverWinner == 0) {
+        showTieGameMessage(false);
+      } else {
+        showWinner(gameOverWinner, false);
+      }
+    }
+
+    if (millis() - roundEndTime >= currentDisplayTime) {
       roundEnded = false;
       roundEndTime = 0;
       turnOffAllLeds();
       clearDisplay();
-      changeState(STAGE1_STATE);
+      
+      // Se è Game Over per timeout, torniamo a INTRO_STATE, altrimenti continuiamo i round
+      if (currentRoundWinner == -1) {
+        changeState(INTRO_STATE);
+      } else {
+        changeState(STAGE1_STATE);
+      }
     }
     return;
   }
 
-  // Controllo Timeout del Round
+  // Controllo Timeout del Round (Game Over)
   if (isStageTimerExpired()) {
     stopStageTimer();
-    Serial.println("Time's up!");
-    showTie(true);
-    currentWinner = 0; // Nessun vincitore
+    Serial.println("Time's up! Game Over.");
+    gameOverWinner = (scoreP1 > scoreP2) ? 1 : (scoreP2 > scoreP1) ? 2 : 0;
+    
+    if (gameOverWinner == 0) {
+      showTieGameMessage(true);
+    } else {
+      showWinner(gameOverWinner, true);
+    }
+
+    currentRoundWinner = -1; // Segna che è Game Over per timeout
     roundEnded = true;
     roundEndTime = millis();
     return;
@@ -199,8 +223,8 @@ void stage2() {
 
   if (clicksP1 == targetNumber) {
     stopStageTimer();
-    showWinner(1, true);
-    currentWinner = 1;
+    showRoundWinner(1, true);
+    currentRoundWinner = 1;
     scoreP1++;
     setLedState(1, true);
     roundEnded = true;
@@ -208,36 +232,32 @@ void stage2() {
     return;
   } else if (clicksP1 > targetNumber) {
     stopStageTimer();
-
     Serial.println("Player 1 ha superato il target!");
     scoreP1--;
     analogWrite(RED_LED_PLAYER_1, 255); // Accende L2 (LED rosso Player 1)
 
+    currentRoundWinner = 0; // Penalità
     roundEnded = true;
     roundEndTime = millis();
     return;
   }
 
-  // 6. Controllo Condizioni di Vittoria / Sconfitta Player 2
   if (clicksP2 == targetNumber) {
     stopStageTimer();
-
-    Serial.println("Player 2 vince il round!");
-    showWinner(2, true);
-    currentWinner = 2;
+    showRoundWinner(2, true);
+    currentRoundWinner = 2;
     scoreP2++;
     setLedState(2, true); // Accende L4 (LED verde Player 2)
-
     roundEnded = true;
     roundEndTime = millis();
     return;
   } else if (clicksP2 > targetNumber) {
     stopStageTimer();
-
     Serial.println("Player 2 ha superato il target!");
     scoreP2--;
     analogWrite(RED_LED_PLAYER_2, 255); // Accende L3 (LED rosso Player 2)
 
+    currentRoundWinner = 0; // Penalità
     roundEnded = true;
     roundEndTime = millis();
     return;
@@ -256,12 +276,11 @@ void deepSleep(){
   sleepDisplay();
   resetInput();
 
-  // game CHANGE interrupts off, pin-change wake-up on B1/B2
   inputPrepareForDeepSleep();
 
   set_sleep_mode(SLEEP_MODE_PWR_DOWN);
   sleep_enable();
-  sleep_cpu(); // ---- sleeps here, resumes here on B1/B2 ----
+  sleep_cpu();
 
   sleep_disable();
   inputResumeFromDeepSleep();
