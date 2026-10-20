@@ -1,230 +1,476 @@
 #include <Arduino.h>
+#include <avr/interrupt.h>
 #include <avr/sleep.h>
-#include <stdlib.h>
 #include "core.h"
 #include "kernel.h"
 #include "config.h"
 #include "input.h"
 #include "output.h"
 
-#define INTRO_TIMEOUT 10000 // ms waiting for B1+B2 before deep sleep
-#define FINAL_TIMEOUT 10000
-#define MAX_NUMBER 3
-
 static int roundNumber = 1;
 static int scoreP1 = 0;
 static int scoreP2 = 0;
+
+/* Per-round data. */
 static int counterPlayer1 = 0;
 static int counterPlayer2 = 0;
-static int lastShownLevel = -1;
-static int remainingTimeMs = 0;
+static int currentNumber = 1;
+static int roundWinner = -1;         // player who gets the green led
+static int roundPenaltyPlayer = -1;  // player who gets the red led
+static bool bothPenalty = false;
+static int pendingWinner = -1;       // reached N, waiting for confirmation
+static unsigned long winConfirmStart = 0;
+static unsigned long currentT1Ms = T1;
+static int selectedLevel = 1;  // level chosen before the game starts
+static unsigned long reactionDeadline = 0;
 
-void initCore(){
-  Serial.begin(9600);
-  srand(analogRead(A1)); // seed random number generator with noise from unconnected analog pin
+/* Random wait before N is shown, and early-press penalty. */
+static unsigned long waitDeadline = 0;
+static unsigned long penaltyStartMs = 0;
+static unsigned long penaltyRemainingMs = 0;
+static bool penaltyActive = false;
+static bool penaltyPlayer1 = false;
+static bool penaltyPlayer2 = false;
+
+static int lastShownLevel = -1;
+static int finalWinner = 0;
+
+/* millis()-safe deadline test (also correct across the millis() wrap). */
+static bool timeReached(unsigned long deadline) {
+  return (long)(millis() - deadline) >= 0;
 }
 
-void resetScores(){
+static int getReductionPercent() {
+  switch (selectedLevel) {
+    case 1:
+      return F_LEVEL_1;
+    case 2:
+      return F_LEVEL_2;
+    case 3:
+      return F_LEVEL_3;
+    case 4:
+      return F_LEVEL_4;
+    default:
+      return F_LEVEL_1;
+  }
+}
+
+static void reduceT1() {
+  int percent = getReductionPercent();
+  unsigned long reduced = (currentT1Ms * (100 - percent)) / 100;
+  if (reduced < T1_MIN) {
+    reduced = T1_MIN;
+  }
+  currentT1Ms = reduced;
+}
+
+static void resetRoundOutcome() {
+  roundWinner = -1;
+  roundPenaltyPlayer = -1;
+  bothPenalty = false;
+}
+
+void initCore() {
+#ifdef __DEBUG__
+  Serial.begin(9600);
+#endif
+
+  // Seed the Arduino PRNG from the noise of an unconnected analog pin.
+  unsigned long seed = 0;
+  for (int i = 0; i < 8; i++) {
+    seed = seed * 33UL + analogRead(A1);
+  }
+  randomSeed(seed ^ micros());
+
+  resetScores();
+  currentT1Ms = T1;
+}
+
+void resetScores() {
   scoreP1 = 0;
   scoreP2 = 0;
 }
 
-int getScoreP1(){ return scoreP1; }
-int getScoreP2(){ return scoreP2; }
+int getScoreP1() { return scoreP1; }
+int getScoreP2() { return scoreP2; }
 
-void startTimer(int durationMs) {
-    remainingTimeMs = durationMs;
-}
-
-void intro(){
+void intro() {
   bool firstTime = isJustEnteredInState();
-  if (firstTime){
-    Serial.println("Welcome to the React! Game. Press Buttons to Start");
+
+  if (firstTime) {
     resetInput();
-    turnOffAllLeds(); // greens off, reds driven by pulse below
+    turnOffAllLeds();
+    currentT1Ms = T1;
+    roundNumber = 1;
+
+    // A new game will start from zero, but the final scores remain
+    // available until then for debugging.
+    lastShownLevel = -1;
     updateDifficultyLevel();
     lastShownLevel = getDifficultyLevel();
-  }
 
-  // single-line rotating message
-  updateWelcomeScroll(firstTime);
-
-  // difficulty selected with Pot
-  if (firstTime){
+    updateWelcomeScroll(true);
     showDifficultyLevel(lastShownLevel);
-  }
-  updateDifficultyLevel();
-  int level = getDifficultyLevel();
-  if (level != lastShownLevel){
-    lastShownLevel = level;
-    showDifficultyLevel(level);
+    DEBUG_PRINTLN("Welcome to the React! Game. Press Buttons to Start");
+  } else {
+    updateWelcomeScroll(false);
+
+    updateDifficultyLevel();
+    int level = getDifficultyLevel();
+    if (level != lastShownLevel) {
+      lastShownLevel = level;
+      showDifficultyLevel(level);
+    }
   }
 
-  // L2 and L3 fading in/out in counterphase, greens stay off
+  // L2 and L3 fade in/out in counterphase; green leds stay off.
   pulseRedLedsInCounterphase(getCurrentTimeInState());
 
-  // start when BOTH buttons have been pressed
-  if (areBothButtonsPressed()){
-    turnOffAllLeds();
-    resetScores();
-    resetInput();
-    showGoMessage();
-    Serial.println("Go!");
-    changeState(STAGE1_STATE);
+  // Start when BOTH buttons have been pressed.
+  if (areBothButtonsPressed()) {
+    changeState(GO_STATE);
     return;
   }
 
-  // 10 s without both buttons -> deep sleep
-  if (getCurrentTimeInState() > INTRO_TIMEOUT){
+  // No game start within INTRO_TIMEOUT -> deep sleep.
+  if (getCurrentTimeInState() >= INTRO_TIMEOUT) {
     changeState(DEEP_SLEEP_STATE);
   }
 }
 
-void stage1(){
+void goState() {
   bool firstTime = isJustEnteredInState();
-  if (firstTime){
+
+  if (firstTime) {
+    resetScores();
+    roundNumber = 1;
+    currentT1Ms = T1;
+    selectedLevel = getDifficultyLevel();
+    resetRoundOutcome();
+    resetInput();
+    turnOffAllLeds();
     showGoMessage();
-    Serial.println("Game started.");
-    int waitTime = random(0, MAX_WAIT + 1); // 0...MAX_WAIT ms
-    startTimer(waitTime);
+    DEBUG_PRINTLN("Game started.");
   }
-  showPlayerScores(scoreP1, scoreP2);
 
-  if (isButtonPressed(PLAYER_1_ID)) {
-    scoreP1 = max(0, scoreP1 - 1);
-    Serial.println("Player 1 pressed too early!");
+  if (getCurrentTimeInState() >= GO_DURATION) {
     resetInput();
-  }
-  if (isButtonPressed(PLAYER_2_ID)) {
-    scoreP2 = max(0, scoreP2 - 1);
-    Serial.println("Player 2 pressed too early!");
-    resetInput();
-  }
-
-  if (hasSystemTickPassed()) {
-    if (remainingTimeMs > 0) {
-      remainingTimeMs -= 100;
-      Serial.print("Tempo rimanente: ");
-      Serial.println(remainingTimeMs);
-    }
-
-    if (remainingTimeMs <= 0) {
-      changeState(STAGE2_STATE);
-    }
-    // TODO: implement the game logic for stage 1, including checking button presses and updating scores
+    changeState(STAGE1_STATE);
   }
 }
 
-void stage2(){
+/*
+ * STAGE1: leds off, LCD cleared, wait a random time before showing N.
+ * Presses in this phase are too early and cause a 2 s red-led penalty.
+ */
+void stage1() {
   bool firstTime = isJustEnteredInState();
-  int nextNumber;
-  if (firstTime){
-    showRoundNumber(roundNumber);
-    roundNumber++;
-    nextNumber = random(1, MAX_NUMBER + 1); // 1...MAX_NUMBER
-    Serial.println("Next number: " + String(nextNumber));
-    showNextNumber(nextNumber);
-    int diffTimer = max(0, T1-(F_FACTOR*getDifficultyLevel()*roundNumber));
-    startTimer(diffTimer);
+
+  if (firstTime) {
+    turnOffAllLeds();
+    clearDisplay();
+    resetInput();
     counterPlayer1 = 0;
     counterPlayer2 = 0;
-  }
-  if (isButtonPressed(PLAYER_1_ID)) {
-    counterPlayer1++;
-    Serial.println("Player 1 pressed. Counter: " + String(counterPlayer1));
-    resetInput();
-  }
-  if (isButtonPressed(PLAYER_2_ID)) {
-    counterPlayer2++;
-    Serial.println("Player 2 pressed. Counter: " + String(counterPlayer2));
-    resetInput();
+    resetRoundOutcome();
+    penaltyActive = false;
+    penaltyPlayer1 = false;
+    penaltyPlayer2 = false;
+    waitDeadline = millis() + random(0, MAX_WAIT + 1);
+    DEBUG_PRINT("Round ");
+    DEBUG_PRINTLN(roundNumber);
   }
 
-  if (counterPlayer1 == nextNumber) {
-    scoreP1++;
-    changeState(STAGE1_STATE);
-  } else if (counterPlayer1 > nextNumber) {
-    scoreP1 = max(0, scoreP1 - 1);
-    changeState(STAGE1_STATE);
-  }
-  if (counterPlayer2 == nextNumber) {
-    scoreP2++;
-    changeState(STAGE1_STATE);
-  } else if (counterPlayer2 > nextNumber) {
-    scoreP2 = max(0, scoreP2 - 1);
-    changeState(STAGE1_STATE);
-  }
+  if (penaltyActive) {
+    // Presses while the penalty is displayed are discarded.
+    takeButtonPresses(PLAYER_1_ID);
+    takeButtonPresses(PLAYER_2_ID);
 
-  if (hasSystemTickPassed()) {
-    if (remainingTimeMs > 0) {
-      remainingTimeMs -= 100;
-      Serial.print("Tempo rimanente: ");
-      Serial.println(remainingTimeMs);
+    if (!timeReached(penaltyStartMs + ROUND_RESULT_DURATION)) {
+      return;
     }
 
-    if (remainingTimeMs <= 0) {
-      changeState(FINAL_STATE);
+    turnOffAllLeds();
+    penaltyActive = false;
+    penaltyPlayer1 = false;
+    penaltyPlayer2 = false;
+    clearDisplay();
+    // Resume the random wait where it was interrupted.
+    waitDeadline = millis() + penaltyRemainingMs;
+    return;
+  }
+
+  int pressesP1 = takeButtonPresses(PLAYER_1_ID);
+  int pressesP2 = takeButtonPresses(PLAYER_2_ID);
+
+  if (pressesP1 > 0 || pressesP2 > 0) {
+    if (pressesP1 > 0) {
+      scoreP1--;
+      penaltyPlayer1 = true;
     }
+    if (pressesP2 > 0) {
+      scoreP2--;
+      penaltyPlayer2 = true;
+    }
+
+    turnOffAllLeds();
+    if (penaltyPlayer1) {
+      setRedLed(PLAYER_1_ID, true);
+    }
+    if (penaltyPlayer2) {
+      setRedLed(PLAYER_2_ID, true);
+    }
+
+    penaltyRemainingMs = timeReached(waitDeadline) ? 0 : (waitDeadline - millis());
+    penaltyStartMs = millis();
+    penaltyActive = true;
+
+    clearDisplay();
+    showPlayerScores(scoreP1, scoreP2, true);
+    DEBUG_PRINTLN("Too early!");
+    return;
+  }
+
+  if (timeReached(waitDeadline)) {
+    changeState(STAGE2_STATE);
   }
 }
 
-void deepSleep(){
+/*
+ * STAGE2: N is shown; the first player who presses it exactly N times wins.
+ * Pressing more than N times causes a penalty.
+ */
+void stage2() {
   bool firstTime = isJustEnteredInState();
-  if (!firstTime){
+
+  if (firstTime) {
+    resetInput();
+    counterPlayer1 = 0;
+    counterPlayer2 = 0;
+    pendingWinner = -1;
+    currentNumber = random(1, MAX_NUMBER + 1);
+    clearDisplay();
+    showRoundNumber(roundNumber);
+    showNextNumber(currentNumber);
+    DEBUG_PRINT("Number: ");
+    DEBUG_PRINTLN(currentNumber);
+    DEBUG_PRINT("T1: ");
+    DEBUG_PRINTLN(currentT1Ms);
+    // Start the reaction time once N is actually visible on the LCD.
+    reactionDeadline = millis() + currentT1Ms;
+  }
+
+  counterPlayer1 += takeButtonPresses(PLAYER_1_ID);
+  counterPlayer2 += takeButtonPresses(PLAYER_2_ID);
+
+  /*
+   * A player has reached N. Wait a short confirmation window before awarding
+   * the point: if the same player presses again, the round is a foul instead.
+   * This makes the "more than N presses" penalty reliable even when each press
+   * is read in a different super-loop iteration.
+   */
+  if (pendingWinner != -1) {
+    if (pendingWinner == PLAYER_1_ID && counterPlayer1 > currentNumber) {
+      scoreP1--;
+      roundWinner = -1;
+      roundPenaltyPlayer = PLAYER_1_ID;
+      bothPenalty = false;
+      pendingWinner = -1;
+      changeState(ROUND_END_STATE);
+      return;
+    }
+
+    if (pendingWinner == PLAYER_2_ID && counterPlayer2 > currentNumber) {
+      scoreP2--;
+      roundWinner = -1;
+      roundPenaltyPlayer = PLAYER_2_ID;
+      bothPenalty = false;
+      pendingWinner = -1;
+      changeState(ROUND_END_STATE);
+      return;
+    }
+
+    if (millis() - winConfirmStart >= WIN_CONFIRM_MS) {
+      if (pendingWinner == PLAYER_1_ID) {
+        scoreP1++;
+        roundWinner = PLAYER_1_ID;
+      } else {
+        scoreP2++;
+        roundWinner = PLAYER_2_ID;
+      }
+      roundPenaltyPlayer = -1;
+      bothPenalty = false;
+      pendingWinner = -1;
+      changeState(ROUND_END_STATE);
+    }
     return;
   }
-  Serial.println("Going to sleep. Press B1 or B2 to wake up.");
-  Serial.flush();
+
+  bool p1Exact = (counterPlayer1 == currentNumber);
+  bool p2Exact = (counterPlayer2 == currentNumber);
+  bool p1Over = (counterPlayer1 > currentNumber);
+  bool p2Over = (counterPlayer2 > currentNumber);
+
+  if (p1Exact || p2Exact || p1Over || p2Over) {
+    // Both completed in the same loop iteration: use the timestamp of the
+    // last press to decide who was actually first.
+    if (p1Exact && p2Exact) {
+      if (getLastPressTime(PLAYER_1_ID) <= getLastPressTime(PLAYER_2_ID)) {
+        p2Exact = false;
+      } else {
+        p1Exact = false;
+      }
+    }
+
+    if (p1Exact || p2Exact) {
+      pendingWinner = p1Exact ? PLAYER_1_ID : PLAYER_2_ID;
+      winConfirmStart = millis();
+      return;
+    }
+
+    if (p1Over && p2Over) {
+      scoreP1--;
+      scoreP2--;
+      roundWinner = -1;
+      roundPenaltyPlayer = -1;
+      bothPenalty = true;
+      changeState(ROUND_END_STATE);
+      return;
+    }
+
+    if (p1Over) {
+      scoreP1--;
+      roundWinner = -1;
+      roundPenaltyPlayer = PLAYER_1_ID;
+      bothPenalty = false;
+      changeState(ROUND_END_STATE);
+      return;
+    }
+
+    if (p2Over) {
+      scoreP2--;
+      roundWinner = -1;
+      roundPenaltyPlayer = PLAYER_2_ID;
+      bothPenalty = false;
+      changeState(ROUND_END_STATE);
+      return;
+    }
+  }
+
+  if (timeReached(reactionDeadline)) {
+    changeState(GAME_OVER_LED_STATE);
+  }
+}
+
+/* Show the green/red result led and the scores for 2 seconds. */
+void roundEnd() {
+  bool firstTime = isJustEnteredInState();
+
+  if (firstTime) {
+    turnOffAllLeds();
+
+    if (roundWinner == PLAYER_1_ID) {
+      setGreenLed(PLAYER_1_ID, true);
+    } else if (roundWinner == PLAYER_2_ID) {
+      setGreenLed(PLAYER_2_ID, true);
+    } else if (bothPenalty) {
+      setBothRedLeds(true);
+    } else if (roundPenaltyPlayer == PLAYER_1_ID) {
+      setRedLed(PLAYER_1_ID, true);
+    } else if (roundPenaltyPlayer == PLAYER_2_ID) {
+      setRedLed(PLAYER_2_ID, true);
+    }
+
+    clearDisplay();
+    showRoundNumber(roundNumber);
+    showPlayerScores(scoreP1, scoreP2, true);
+  }
+
+  if (getCurrentTimeInState() < ROUND_RESULT_DURATION) {
+    return;
+  }
+
+  turnOffAllLeds();
+  reduceT1();
+  roundNumber++;
+  changeState(STAGE1_STATE);
+}
+
+/* Timeout: both red leds on for 2 seconds, then game over. */
+void gameOverLeds() {
+  bool firstTime = isJustEnteredInState();
+
+  if (firstTime) {
+    turnOffAllLeds();
+    setBothRedLeds(true);
+    clearDisplay();
+    DEBUG_PRINTLN("Timeout: game over.");
+  }
+
+  if (getCurrentTimeInState() >= GAME_OVER_LED_DURATION) {
+    turnOffAllLeds();
+    changeState(FINAL_STATE);
+  }
+}
+
+void finalize() {
+  bool firstTime = isJustEnteredInState();
+
+  if (firstTime) {
+    finalWinner = 0;
+    if (scoreP1 > scoreP2) {
+      finalWinner = 1;
+    } else if (scoreP2 > scoreP1) {
+      finalWinner = 2;
+    }
+
+    turnOffAllLeds();
+    resetInput();
+    showEndGameMessage(true, finalWinner);
+
+    DEBUG_PRINT("Final score - P1: ");
+    DEBUG_PRINT(scoreP1);
+    DEBUG_PRINT(" P2: ");
+    DEBUG_PRINTLN(scoreP2);
+  } else {
+    showEndGameMessage(false, finalWinner);
+  }
+
+  if (getCurrentTimeInState() >= FINAL_TIMEOUT) {
+    changeState(INTRO_STATE);
+  }
+}
+
+void deepSleep() {
+  if (!isJustEnteredInState()) {
+    return;
+  }
 
   turnOffAllLeds();
   sleepDisplay();
   resetInput();
+  DEBUG_PRINTLN("Going to sleep. Press B1 or B2 to wake up.");
+#ifdef __DEBUG__
+  Serial.flush();
+#endif
 
-  // game CHANGE interrupts off, pin-change wake-up on B1/B2
+  // Game CHANGE interrupts off, pin-change wake-up on B1/B2.
   inputPrepareForDeepSleep();
+
+  // Avoid a pending timer tick from waking the MCU immediately.
+  TIMSK0 &= ~(1 << TOIE0);
+  TIMSK1 &= ~(1 << OCIE1A);
 
   set_sleep_mode(SLEEP_MODE_PWR_DOWN);
   sleep_enable();
   sleep_cpu(); // ---- sleeps here, resumes here on B1/B2 ----
 
   sleep_disable();
+  TIMSK0 |= (1 << TOIE0);
+  TIMSK1 |= (1 << OCIE1A);
+
   inputResumeFromDeepSleep();
   wakeDisplay();
-  Serial.println("Woke up, back to intro.");
+  DEBUG_PRINTLN("Woke up, back to intro.");
   changeState(INTRO_STATE);
-}
-
-void finalize(){
-  bool firstTime = isJustEnteredInState();
-  int winner;
-  if (firstTime){
-    winner = 0;
-    if (scoreP1 > scoreP2) {
-      winner = 1;
-    } else if (scoreP2 > scoreP1) {
-      winner = 2;
-    }
-    Serial.println("Final score - Player 1: " + String(scoreP1) + ", Player 2: " + String(scoreP2));
-    if (winner == 1) {
-      Serial.println("Player 1 wins!");
-    } else if (winner == 2) {
-      Serial.println("Player 2 wins!");
-    } else {
-      Serial.println("It's a tie!");
-    }
-    startTimer(FINAL_TIMEOUT);
-  }
-  showEndGameMessage(firstTime, winner);
-
-  if (hasSystemTickPassed()) {
-    if (remainingTimeMs > 0) {
-      remainingTimeMs -= 100;
-      Serial.print("Tempo rimanente: ");
-      Serial.println(remainingTimeMs);
-    }
-
-    if (remainingTimeMs <= 0) {
-      changeState(INTRO_STATE);
-    }
-  }
 }

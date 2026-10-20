@@ -15,16 +15,25 @@ void setup() {
 }
 
 void loop() {
-  updateStateTime(); 
-  switch (getCurrentState()) { 
+  updateStateTime();
+  switch (getCurrentState()) {
   case INTRO_STATE:
     intro();
+    break;
+  case GO_STATE:
+    goState();
     break;
   case STAGE1_STATE:
     stage1();
     break;
   case STAGE2_STATE:
     stage2();
+    break;
+  case ROUND_END_STATE:
+    roundEnd();
+    break;
+  case GAME_OVER_LED_STATE:
+    gameOverLeds();
     break;
   case DEEP_SLEEP_STATE:
     deepSleep();

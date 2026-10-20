@@ -64,6 +64,7 @@ void updateStateTime(){
 }
 
 void logMsg(const String& msg){
+  (void)msg;
   #ifdef __DEBUG__
   Serial.println(msg);
   #endif
