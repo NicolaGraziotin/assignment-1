@@ -13,5 +13,6 @@ void pulseRedLedsInCounterphase(long timeMs);
 void showPlayerScores(int player1Score, int player2Score);
 void showNextNumber(int number);
 void showRoundNumber(int round);
+void showEndGameMessage(bool firstTime, int winner);
 
 #endif

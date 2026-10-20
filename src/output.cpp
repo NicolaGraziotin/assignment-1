@@ -152,3 +152,32 @@ void showRoundNumber(int round) {
   lcd.print(round);
   lcd.print("      ");
 }
+
+void showEndGameMessage(bool firstTime, int winner) {
+  static String msg;
+  if (winner == 1) {
+    msg = "Player 1 Wins!";
+  } else if (winner == 2) {
+    msg = "Player 2 Wins!";
+  } else {
+    msg = "It's a Tie!";
+  }
+  static String doubled = msg + msg;
+  static int pos = 0;
+  static unsigned long last = 0;
+
+  if (firstTime) {
+    lcd.clear();
+    pos = 0;
+    last = millis();
+  } else {
+    if (millis() - last < SCROLL_INTERVAL) {
+      return;
+    }
+    last = millis();
+    pos = (pos + 1) % msg.length();
+  }
+
+  lcd.setCursor(0, 0);
+  lcd.print(doubled.substring(pos, pos + LCD_COLS));
+}

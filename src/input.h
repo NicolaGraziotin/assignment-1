@@ -4,7 +4,6 @@
 void initInput();
 void resetInput();
 bool isButtonPressed(int buttonIndex);
-bool hasBeenPressed(int index);
 bool areBothButtonsPressed();
 void updateDifficultyLevel();
 int getDifficultyLevel();

@@ -8,11 +8,14 @@
 #include "output.h"
 
 #define INTRO_TIMEOUT 10000 // ms waiting for B1+B2 before deep sleep
+#define FINAL_TIMEOUT 10000
 #define MAX_NUMBER 3
 
 static int roundNumber = 1;
 static int scoreP1 = 0;
 static int scoreP2 = 0;
+static int counterPlayer1 = 0;
+static int counterPlayer2 = 0;
 static int lastShownLevel = -1;
 static int remainingTimeMs = 0;
 
@@ -86,6 +89,18 @@ void stage1(){
     startTimer(waitTime);
   }
   showPlayerScores(scoreP1, scoreP2);
+
+  if (isButtonPressed(PLAYER_1_ID)) {
+    scoreP1 = max(0, scoreP1 - 1);
+    Serial.println("Player 1 pressed too early!");
+    resetInput();
+  }
+  if (isButtonPressed(PLAYER_2_ID)) {
+    scoreP2 = max(0, scoreP2 - 1);
+    Serial.println("Player 2 pressed too early!");
+    resetInput();
+  }
+
   if (hasSystemTickPassed()) {
     if (remainingTimeMs > 0) {
       remainingTimeMs -= 100;
@@ -102,13 +117,42 @@ void stage1(){
 
 void stage2(){
   bool firstTime = isJustEnteredInState();
+  int nextNumber;
   if (firstTime){
     showRoundNumber(roundNumber);
     roundNumber++;
-    int nextNumber = random(1, MAX_NUMBER + 1); // 1...MAX_NUMBER
+    nextNumber = random(1, MAX_NUMBER + 1); // 1...MAX_NUMBER
     Serial.println("Next number: " + String(nextNumber));
     showNextNumber(nextNumber);
-    startTimer(T1);
+    int diffTimer = max(0, T1-(F_FACTOR*getDifficultyLevel()*roundNumber));
+    startTimer(diffTimer);
+    counterPlayer1 = 0;
+    counterPlayer2 = 0;
+  }
+  if (isButtonPressed(PLAYER_1_ID)) {
+    counterPlayer1++;
+    Serial.println("Player 1 pressed. Counter: " + String(counterPlayer1));
+    resetInput();
+  }
+  if (isButtonPressed(PLAYER_2_ID)) {
+    counterPlayer2++;
+    Serial.println("Player 2 pressed. Counter: " + String(counterPlayer2));
+    resetInput();
+  }
+
+  if (counterPlayer1 == nextNumber) {
+    scoreP1++;
+    changeState(STAGE1_STATE);
+  } else if (counterPlayer1 > nextNumber) {
+    scoreP1 = max(0, scoreP1 - 1);
+    changeState(STAGE1_STATE);
+  }
+  if (counterPlayer2 == nextNumber) {
+    scoreP2++;
+    changeState(STAGE1_STATE);
+  } else if (counterPlayer2 > nextNumber) {
+    scoreP2 = max(0, scoreP2 - 1);
+    changeState(STAGE1_STATE);
   }
 
   if (hasSystemTickPassed()) {
@@ -119,7 +163,7 @@ void stage2(){
     }
 
     if (remainingTimeMs <= 0) {
-      changeState(STAGE1_STATE);
+      changeState(FINAL_STATE);
     }
   }
 }
@@ -150,4 +194,37 @@ void deepSleep(){
   changeState(INTRO_STATE);
 }
 
-void finalize(){}
+void finalize(){
+  bool firstTime = isJustEnteredInState();
+  int winner;
+  if (firstTime){
+    winner = 0;
+    if (scoreP1 > scoreP2) {
+      winner = 1;
+    } else if (scoreP2 > scoreP1) {
+      winner = 2;
+    }
+    Serial.println("Final score - Player 1: " + String(scoreP1) + ", Player 2: " + String(scoreP2));
+    if (winner == 1) {
+      Serial.println("Player 1 wins!");
+    } else if (winner == 2) {
+      Serial.println("Player 2 wins!");
+    } else {
+      Serial.println("It's a tie!");
+    }
+    startTimer(FINAL_TIMEOUT);
+  }
+  showEndGameMessage(firstTime, winner);
+
+  if (hasSystemTickPassed()) {
+    if (remainingTimeMs > 0) {
+      remainingTimeMs -= 100;
+      Serial.print("Tempo rimanente: ");
+      Serial.println(remainingTimeMs);
+    }
+
+    if (remainingTimeMs <= 0) {
+      changeState(INTRO_STATE);
+    }
+  }
+}
