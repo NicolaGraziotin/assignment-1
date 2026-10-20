@@ -10,18 +10,20 @@
 static int roundNumber = 1;
 static int scoreP1 = 0;
 static int scoreP2 = 0;
+static unsigned long currentT1Ms = T1;
+static int selectedLevel = 1;  // level chosen before the game starts
+static int lastShownLevel = -1;
+static int finalWinner = 0;
 
-/* Per-round data. */
+/* Per-round state. */
 static int counterPlayer1 = 0;
 static int counterPlayer2 = 0;
 static int currentNumber = 1;
 static int roundWinner = -1;         // player who gets the green led
 static int roundPenaltyPlayer = -1;  // player who gets the red led
 static bool bothPenalty = false;
-static int pendingWinner = -1;       // reached N, waiting for confirmation
+static int pendingWinner = -1;  // reached N, waiting for confirmation
 static unsigned long winConfirmStart = 0;
-static unsigned long currentT1Ms = T1;
-static int selectedLevel = 1;  // level chosen before the game starts
 static unsigned long reactionDeadline = 0;
 
 /* Random wait before N is shown, and early-press penalty. */
@@ -31,9 +33,6 @@ static unsigned long penaltyRemainingMs = 0;
 static bool penaltyActive = false;
 static bool penaltyPlayer1 = false;
 static bool penaltyPlayer2 = false;
-
-static int lastShownLevel = -1;
-static int finalWinner = 0;
 
 /* millis()-safe deadline test (also correct across the millis() wrap). */
 static bool timeReached(unsigned long deadline) {
@@ -64,10 +63,312 @@ static void reduceT1() {
   currentT1Ms = reduced;
 }
 
-static void resetRoundOutcome() {
+static int determineWinner() {
+  if (scoreP1 > scoreP2) {
+    return 1;
+  }
+  if (scoreP2 > scoreP1) {
+    return 2;
+  }
+  return 0;
+}
+
+static void addPoint(int player) {
+  if (player == PLAYER_1_ID) {
+    scoreP1++;
+  } else if (player == PLAYER_2_ID) {
+    scoreP2++;
+  }
+}
+
+static void removePoint(int player) {
+  if (player == PLAYER_1_ID) {
+    scoreP1--;
+  } else if (player == PLAYER_2_ID) {
+    scoreP2--;
+  }
+}
+
+static void clearRoundOutcome() {
   roundWinner = -1;
   roundPenaltyPlayer = -1;
   bothPenalty = false;
+}
+
+static void setRoundWinner(int player) {
+  roundWinner = player;
+  roundPenaltyPlayer = -1;
+  bothPenalty = false;
+}
+
+static void setRoundPenalty(int player) {
+  roundWinner = -1;
+  roundPenaltyPlayer = player;
+  bothPenalty = false;
+}
+
+static void setBothPenalties() {
+  roundWinner = -1;
+  roundPenaltyPlayer = -1;
+  bothPenalty = true;
+}
+
+static void resetCounters() {
+  counterPlayer1 = 0;
+  counterPlayer2 = 0;
+}
+
+static void resetEarlyPenalty() {
+  penaltyActive = false;
+  penaltyPlayer1 = false;
+  penaltyPlayer2 = false;
+}
+
+static void discardAllPresses() {
+  takeButtonPresses(PLAYER_1_ID);
+  takeButtonPresses(PLAYER_2_ID);
+}
+
+static void beginIntro() {
+  resetInput();
+  turnOffAllLeds();
+  currentT1Ms = T1;
+  roundNumber = 1;
+
+  // A new game will start from zero, but the final scores remain
+  // available until then for debugging.
+  lastShownLevel = -1;
+  updateDifficultyLevel();
+  lastShownLevel = getDifficultyLevel();
+
+  updateWelcomeScroll(true);
+  showDifficultyLevel(lastShownLevel);
+  DEBUG_PRINTLN("Welcome to the React! Game. Press Buttons to Start");
+}
+
+static void updateIntro() {
+  updateWelcomeScroll(false);
+
+  updateDifficultyLevel();
+  int level = getDifficultyLevel();
+  if (level != lastShownLevel) {
+    lastShownLevel = level;
+    showDifficultyLevel(level);
+  }
+}
+
+static void beginGame() {
+  resetScores();
+  roundNumber = 1;
+  currentT1Ms = T1;
+  selectedLevel = getDifficultyLevel();
+  clearRoundOutcome();
+  resetInput();
+  turnOffAllLeds();
+  showGoMessage();
+  DEBUG_PRINTLN("Game started.");
+}
+
+static void beginRandomWait() {
+  turnOffAllLeds();
+  clearDisplay();
+  resetInput();
+  resetCounters();
+  clearRoundOutcome();
+  resetEarlyPenalty();
+  waitDeadline = millis() + random(0, MAX_WAIT + 1);
+  DEBUG_PRINT("Round ");
+  DEBUG_PRINTLN(roundNumber);
+}
+
+static void beginEarlyPenalty(int pressesP1, int pressesP2) {
+  penaltyPlayer1 = (pressesP1 > 0);
+  penaltyPlayer2 = (pressesP2 > 0);
+
+  if (penaltyPlayer1) {
+    removePoint(PLAYER_1_ID);
+  }
+  if (penaltyPlayer2) {
+    removePoint(PLAYER_2_ID);
+  }
+
+  turnOffAllLeds();
+  if (penaltyPlayer1) {
+    setRedLed(PLAYER_1_ID, true);
+  }
+  if (penaltyPlayer2) {
+    setRedLed(PLAYER_2_ID, true);
+  }
+
+  penaltyRemainingMs = timeReached(waitDeadline) ? 0 : (waitDeadline - millis());
+  penaltyStartMs = millis();
+  penaltyActive = true;
+
+  clearDisplay();
+  showPlayerScores(scoreP1, scoreP2, true);
+  DEBUG_PRINTLN("Too early!");
+}
+
+static void endEarlyPenalty() {
+  turnOffAllLeds();
+  resetEarlyPenalty();
+  clearDisplay();
+
+  // Resume the random wait where it was interrupted.
+  waitDeadline = millis() + penaltyRemainingMs;
+}
+
+static void beginReactionRound() {
+  resetInput();
+  resetCounters();
+  pendingWinner = -1;
+  currentNumber = random(1, MAX_NUMBER + 1);
+  clearDisplay();
+  showRoundNumber(roundNumber);
+  showNextNumber(currentNumber);
+  DEBUG_PRINT("Number: ");
+  DEBUG_PRINTLN(currentNumber);
+  DEBUG_PRINT("T1: ");
+  DEBUG_PRINTLN(currentT1Ms);
+
+  // Start the reaction time once N is actually visible on the LCD.
+  reactionDeadline = millis() + currentT1Ms;
+}
+
+/*
+ * A player has reached N. Wait a short confirmation window before awarding
+ * the point: if the same player presses again, the round is a foul instead.
+ * This makes the "more than N presses" penalty reliable even when each press
+ * is read in a different super-loop iteration.
+ */
+static void updatePendingWinner() {
+  if (pendingWinner == PLAYER_1_ID && counterPlayer1 > currentNumber) {
+    removePoint(PLAYER_1_ID);
+    setRoundPenalty(PLAYER_1_ID);
+    pendingWinner = -1;
+    changeState(ROUND_END_STATE);
+    return;
+  }
+
+  if (pendingWinner == PLAYER_2_ID && counterPlayer2 > currentNumber) {
+    removePoint(PLAYER_2_ID);
+    setRoundPenalty(PLAYER_2_ID);
+    pendingWinner = -1;
+    changeState(ROUND_END_STATE);
+    return;
+  }
+
+  if (millis() - winConfirmStart >= WIN_CONFIRM_MS) {
+    addPoint(pendingWinner);
+    setRoundWinner(pendingWinner);
+    pendingWinner = -1;
+    changeState(ROUND_END_STATE);
+  }
+}
+
+/*
+ * If both players completed N in the same loop iteration, compare the
+ * timestamps of their last accepted press to decide who was actually first.
+ * Returns true when a pending winner has been selected.
+ */
+static bool selectPendingWinner(bool &p1Exact, bool &p2Exact) {
+  if (p1Exact && p2Exact) {
+    if (getLastPressTime(PLAYER_1_ID) <= getLastPressTime(PLAYER_2_ID)) {
+      p2Exact = false;
+    } else {
+      p1Exact = false;
+    }
+  }
+
+  if (!p1Exact && !p2Exact) {
+    return false;
+  }
+
+  pendingWinner = p1Exact ? PLAYER_1_ID : PLAYER_2_ID;
+  winConfirmStart = millis();
+  return true;
+}
+
+/* At least one player exceeded N: apply the penalty and end the round. */
+static void handleOvershoot(bool p1Over, bool p2Over) {
+  if (p1Over && p2Over) {
+    removePoint(PLAYER_1_ID);
+    removePoint(PLAYER_2_ID);
+    setBothPenalties();
+  } else if (p1Over) {
+    removePoint(PLAYER_1_ID);
+    setRoundPenalty(PLAYER_1_ID);
+  } else if (p2Over) {
+    removePoint(PLAYER_2_ID);
+    setRoundPenalty(PLAYER_2_ID);
+  }
+
+  changeState(ROUND_END_STATE);
+}
+
+static void showRoundResult() {
+  turnOffAllLeds();
+
+  if (roundWinner == PLAYER_1_ID) {
+    setGreenLed(PLAYER_1_ID, true);
+  } else if (roundWinner == PLAYER_2_ID) {
+    setGreenLed(PLAYER_2_ID, true);
+  } else if (bothPenalty) {
+    setBothRedLeds(true);
+  } else if (roundPenaltyPlayer == PLAYER_1_ID) {
+    setRedLed(PLAYER_1_ID, true);
+  } else if (roundPenaltyPlayer == PLAYER_2_ID) {
+    setRedLed(PLAYER_2_ID, true);
+  }
+
+  clearDisplay();
+  showRoundNumber(roundNumber);
+  showPlayerScores(scoreP1, scoreP2, true);
+}
+
+static void startNextRound() {
+  turnOffAllLeds();
+  reduceT1();
+  roundNumber++;
+  changeState(STAGE1_STATE);
+}
+
+static void beginGameOverLeds() {
+  turnOffAllLeds();
+  setBothRedLeds(true);
+  clearDisplay();
+  DEBUG_PRINTLN("Timeout: game over.");
+}
+
+static void beginFinalMessage() {
+  finalWinner = determineWinner();
+
+  turnOffAllLeds();
+  resetInput();
+  showEndGameMessage(true, finalWinner);
+
+  DEBUG_PRINT("Final score - P1: ");
+  DEBUG_PRINT(scoreP1);
+  DEBUG_PRINT(" P2: ");
+  DEBUG_PRINTLN(scoreP2);
+}
+
+static void disableTimerInterruptsForSleep() {
+  // Avoid a pending timer tick from waking the MCU immediately.
+  TIMSK0 &= ~(1 << TOIE0);
+  TIMSK1 &= ~(1 << OCIE1A);
+}
+
+static void enableTimerInterruptsAfterSleep() {
+  TIMSK0 |= (1 << TOIE0);
+  TIMSK1 |= (1 << OCIE1A);
+}
+
+static void powerDownUntilButtonPress() {
+  set_sleep_mode(SLEEP_MODE_PWR_DOWN);
+  sleep_enable();
+  sleep_cpu();  // ---- sleeps here, resumes here on B1/B2 ----
+  sleep_disable();
 }
 
 void initCore() {
@@ -91,36 +392,11 @@ void resetScores() {
   scoreP2 = 0;
 }
 
-int getScoreP1() { return scoreP1; }
-int getScoreP2() { return scoreP2; }
-
 void intro() {
-  bool firstTime = isJustEnteredInState();
-
-  if (firstTime) {
-    resetInput();
-    turnOffAllLeds();
-    currentT1Ms = T1;
-    roundNumber = 1;
-
-    // A new game will start from zero, but the final scores remain
-    // available until then for debugging.
-    lastShownLevel = -1;
-    updateDifficultyLevel();
-    lastShownLevel = getDifficultyLevel();
-
-    updateWelcomeScroll(true);
-    showDifficultyLevel(lastShownLevel);
-    DEBUG_PRINTLN("Welcome to the React! Game. Press Buttons to Start");
+  if (isJustEnteredInState()) {
+    beginIntro();
   } else {
-    updateWelcomeScroll(false);
-
-    updateDifficultyLevel();
-    int level = getDifficultyLevel();
-    if (level != lastShownLevel) {
-      lastShownLevel = level;
-      showDifficultyLevel(level);
-    }
+    updateIntro();
   }
 
   // L2 and L3 fade in/out in counterphase; green leds stay off.
@@ -139,18 +415,8 @@ void intro() {
 }
 
 void goState() {
-  bool firstTime = isJustEnteredInState();
-
-  if (firstTime) {
-    resetScores();
-    roundNumber = 1;
-    currentT1Ms = T1;
-    selectedLevel = getDifficultyLevel();
-    resetRoundOutcome();
-    resetInput();
-    turnOffAllLeds();
-    showGoMessage();
-    DEBUG_PRINTLN("Game started.");
+  if (isJustEnteredInState()) {
+    beginGame();
   }
 
   if (getCurrentTimeInState() >= GO_DURATION) {
@@ -164,39 +430,19 @@ void goState() {
  * Presses in this phase are too early and cause a 2 s red-led penalty.
  */
 void stage1() {
-  bool firstTime = isJustEnteredInState();
-
-  if (firstTime) {
-    turnOffAllLeds();
-    clearDisplay();
-    resetInput();
-    counterPlayer1 = 0;
-    counterPlayer2 = 0;
-    resetRoundOutcome();
-    penaltyActive = false;
-    penaltyPlayer1 = false;
-    penaltyPlayer2 = false;
-    waitDeadline = millis() + random(0, MAX_WAIT + 1);
-    DEBUG_PRINT("Round ");
-    DEBUG_PRINTLN(roundNumber);
+  if (isJustEnteredInState()) {
+    beginRandomWait();
   }
 
   if (penaltyActive) {
     // Presses while the penalty is displayed are discarded.
-    takeButtonPresses(PLAYER_1_ID);
-    takeButtonPresses(PLAYER_2_ID);
+    discardAllPresses();
 
     if (!timeReached(penaltyStartMs + ROUND_RESULT_DURATION)) {
       return;
     }
 
-    turnOffAllLeds();
-    penaltyActive = false;
-    penaltyPlayer1 = false;
-    penaltyPlayer2 = false;
-    clearDisplay();
-    // Resume the random wait where it was interrupted.
-    waitDeadline = millis() + penaltyRemainingMs;
+    endEarlyPenalty();
     return;
   }
 
@@ -204,30 +450,7 @@ void stage1() {
   int pressesP2 = takeButtonPresses(PLAYER_2_ID);
 
   if (pressesP1 > 0 || pressesP2 > 0) {
-    if (pressesP1 > 0) {
-      scoreP1--;
-      penaltyPlayer1 = true;
-    }
-    if (pressesP2 > 0) {
-      scoreP2--;
-      penaltyPlayer2 = true;
-    }
-
-    turnOffAllLeds();
-    if (penaltyPlayer1) {
-      setRedLed(PLAYER_1_ID, true);
-    }
-    if (penaltyPlayer2) {
-      setRedLed(PLAYER_2_ID, true);
-    }
-
-    penaltyRemainingMs = timeReached(waitDeadline) ? 0 : (waitDeadline - millis());
-    penaltyStartMs = millis();
-    penaltyActive = true;
-
-    clearDisplay();
-    showPlayerScores(scoreP1, scoreP2, true);
-    DEBUG_PRINTLN("Too early!");
+    beginEarlyPenalty(pressesP1, pressesP2);
     return;
   }
 
@@ -241,68 +464,15 @@ void stage1() {
  * Pressing more than N times causes a penalty.
  */
 void stage2() {
-  bool firstTime = isJustEnteredInState();
-
-  if (firstTime) {
-    resetInput();
-    counterPlayer1 = 0;
-    counterPlayer2 = 0;
-    pendingWinner = -1;
-    currentNumber = random(1, MAX_NUMBER + 1);
-    clearDisplay();
-    showRoundNumber(roundNumber);
-    showNextNumber(currentNumber);
-    DEBUG_PRINT("Number: ");
-    DEBUG_PRINTLN(currentNumber);
-    DEBUG_PRINT("T1: ");
-    DEBUG_PRINTLN(currentT1Ms);
-    // Start the reaction time once N is actually visible on the LCD.
-    reactionDeadline = millis() + currentT1Ms;
+  if (isJustEnteredInState()) {
+    beginReactionRound();
   }
 
   counterPlayer1 += takeButtonPresses(PLAYER_1_ID);
   counterPlayer2 += takeButtonPresses(PLAYER_2_ID);
 
-  /*
-   * A player has reached N. Wait a short confirmation window before awarding
-   * the point: if the same player presses again, the round is a foul instead.
-   * This makes the "more than N presses" penalty reliable even when each press
-   * is read in a different super-loop iteration.
-   */
   if (pendingWinner != -1) {
-    if (pendingWinner == PLAYER_1_ID && counterPlayer1 > currentNumber) {
-      scoreP1--;
-      roundWinner = -1;
-      roundPenaltyPlayer = PLAYER_1_ID;
-      bothPenalty = false;
-      pendingWinner = -1;
-      changeState(ROUND_END_STATE);
-      return;
-    }
-
-    if (pendingWinner == PLAYER_2_ID && counterPlayer2 > currentNumber) {
-      scoreP2--;
-      roundWinner = -1;
-      roundPenaltyPlayer = PLAYER_2_ID;
-      bothPenalty = false;
-      pendingWinner = -1;
-      changeState(ROUND_END_STATE);
-      return;
-    }
-
-    if (millis() - winConfirmStart >= WIN_CONFIRM_MS) {
-      if (pendingWinner == PLAYER_1_ID) {
-        scoreP1++;
-        roundWinner = PLAYER_1_ID;
-      } else {
-        scoreP2++;
-        roundWinner = PLAYER_2_ID;
-      }
-      roundPenaltyPlayer = -1;
-      bothPenalty = false;
-      pendingWinner = -1;
-      changeState(ROUND_END_STATE);
-    }
+    updatePendingWinner();
     return;
   }
 
@@ -312,47 +482,12 @@ void stage2() {
   bool p2Over = (counterPlayer2 > currentNumber);
 
   if (p1Exact || p2Exact || p1Over || p2Over) {
-    // Both completed in the same loop iteration: use the timestamp of the
-    // last press to decide who was actually first.
-    if (p1Exact && p2Exact) {
-      if (getLastPressTime(PLAYER_1_ID) <= getLastPressTime(PLAYER_2_ID)) {
-        p2Exact = false;
-      } else {
-        p1Exact = false;
-      }
-    }
-
-    if (p1Exact || p2Exact) {
-      pendingWinner = p1Exact ? PLAYER_1_ID : PLAYER_2_ID;
-      winConfirmStart = millis();
+    if (selectPendingWinner(p1Exact, p2Exact)) {
       return;
     }
 
-    if (p1Over && p2Over) {
-      scoreP1--;
-      scoreP2--;
-      roundWinner = -1;
-      roundPenaltyPlayer = -1;
-      bothPenalty = true;
-      changeState(ROUND_END_STATE);
-      return;
-    }
-
-    if (p1Over) {
-      scoreP1--;
-      roundWinner = -1;
-      roundPenaltyPlayer = PLAYER_1_ID;
-      bothPenalty = false;
-      changeState(ROUND_END_STATE);
-      return;
-    }
-
-    if (p2Over) {
-      scoreP2--;
-      roundWinner = -1;
-      roundPenaltyPlayer = PLAYER_2_ID;
-      bothPenalty = false;
-      changeState(ROUND_END_STATE);
+    if (p1Over || p2Over) {
+      handleOvershoot(p1Over, p2Over);
       return;
     }
   }
@@ -364,47 +499,21 @@ void stage2() {
 
 /* Show the green/red result led and the scores for 2 seconds. */
 void roundEnd() {
-  bool firstTime = isJustEnteredInState();
-
-  if (firstTime) {
-    turnOffAllLeds();
-
-    if (roundWinner == PLAYER_1_ID) {
-      setGreenLed(PLAYER_1_ID, true);
-    } else if (roundWinner == PLAYER_2_ID) {
-      setGreenLed(PLAYER_2_ID, true);
-    } else if (bothPenalty) {
-      setBothRedLeds(true);
-    } else if (roundPenaltyPlayer == PLAYER_1_ID) {
-      setRedLed(PLAYER_1_ID, true);
-    } else if (roundPenaltyPlayer == PLAYER_2_ID) {
-      setRedLed(PLAYER_2_ID, true);
-    }
-
-    clearDisplay();
-    showRoundNumber(roundNumber);
-    showPlayerScores(scoreP1, scoreP2, true);
+  if (isJustEnteredInState()) {
+    showRoundResult();
   }
 
   if (getCurrentTimeInState() < ROUND_RESULT_DURATION) {
     return;
   }
 
-  turnOffAllLeds();
-  reduceT1();
-  roundNumber++;
-  changeState(STAGE1_STATE);
+  startNextRound();
 }
 
 /* Timeout: both red leds on for 2 seconds, then game over. */
 void gameOverLeds() {
-  bool firstTime = isJustEnteredInState();
-
-  if (firstTime) {
-    turnOffAllLeds();
-    setBothRedLeds(true);
-    clearDisplay();
-    DEBUG_PRINTLN("Timeout: game over.");
+  if (isJustEnteredInState()) {
+    beginGameOverLeds();
   }
 
   if (getCurrentTimeInState() >= GAME_OVER_LED_DURATION) {
@@ -414,24 +523,8 @@ void gameOverLeds() {
 }
 
 void finalize() {
-  bool firstTime = isJustEnteredInState();
-
-  if (firstTime) {
-    finalWinner = 0;
-    if (scoreP1 > scoreP2) {
-      finalWinner = 1;
-    } else if (scoreP2 > scoreP1) {
-      finalWinner = 2;
-    }
-
-    turnOffAllLeds();
-    resetInput();
-    showEndGameMessage(true, finalWinner);
-
-    DEBUG_PRINT("Final score - P1: ");
-    DEBUG_PRINT(scoreP1);
-    DEBUG_PRINT(" P2: ");
-    DEBUG_PRINTLN(scoreP2);
+  if (isJustEnteredInState()) {
+    beginFinalMessage();
   } else {
     showEndGameMessage(false, finalWinner);
   }
@@ -457,17 +550,9 @@ void deepSleep() {
   // Game CHANGE interrupts off, pin-change wake-up on B1/B2.
   inputPrepareForDeepSleep();
 
-  // Avoid a pending timer tick from waking the MCU immediately.
-  TIMSK0 &= ~(1 << TOIE0);
-  TIMSK1 &= ~(1 << OCIE1A);
-
-  set_sleep_mode(SLEEP_MODE_PWR_DOWN);
-  sleep_enable();
-  sleep_cpu(); // ---- sleeps here, resumes here on B1/B2 ----
-
-  sleep_disable();
-  TIMSK0 |= (1 << TOIE0);
-  TIMSK1 |= (1 << OCIE1A);
+  disableTimerInterruptsForSleep();
+  powerDownUntilButtonPress();
+  enableTimerInterruptsAfterSleep();
 
   inputResumeFromDeepSleep();
   wakeDisplay();
