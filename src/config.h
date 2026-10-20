@@ -21,7 +21,7 @@
 
 // game parameters
 #define T1 5000 // max time to react
-#define F 10 // factor to increase difficulty
+#define F 200 // factor to increase difficulty
 #define MAX_WAIT 5000 // max wait time for the actual game
 
 #endif

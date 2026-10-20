@@ -2,14 +2,12 @@
 #include <LiquidCrystal_I2C.h>
 #include "config.h"
 
-// #define __DEBUG__
-
 #define LCD_COLS 20
 #define LCD_ROWS 4
 #define SCROLL_INTERVAL 300
 
 uint8_t outputPins[NUM_LEDS] = {RED_LED_PLAYER_1, GREEN_LED_PLAYER_1, GREEN_LED_PLAYER_2, RED_LED_PLAYER_2};
-LiquidCrystal_I2C lcd = LiquidCrystal_I2C(0x27,LCD_COLS,LCD_ROWS);
+LiquidCrystal_I2C lcd = LiquidCrystal_I2C(0x27, LCD_COLS, LCD_ROWS);
 
 void initOutput(){
   for(int i = 0; i < NUM_LEDS; i++){
@@ -22,6 +20,23 @@ void initOutput(){
 void setLedState(int ledIndex, bool state){
   if(ledIndex >= 0 && ledIndex < NUM_LEDS){
     digitalWrite(outputPins[ledIndex], state ? HIGH : LOW);
+  }
+}
+
+// Nuove funzioni di astrazione per l'accensione dei LED dei giocatori
+void turnOnRedLed(int playerIndex) {
+  if (playerIndex == 1) {
+    analogWrite(RED_LED_PLAYER_1, 255);
+  } else if (playerIndex == 2) {
+    analogWrite(RED_LED_PLAYER_2, 255);
+  }
+}
+
+void turnOnGreenLed(int playerIndex) {
+  if (playerIndex == 1) {
+    digitalWrite(GREEN_LED_PLAYER_1, HIGH);
+  } else if (playerIndex == 2) {
+    digitalWrite(GREEN_LED_PLAYER_2, HIGH);
   }
 }
 
@@ -70,21 +85,11 @@ void printDifficultyLevel(int level) {
   lcd.print("Difficulty: ");
   lcd.setCursor(1, 3);
   switch (level) {
-    case 1:
-      lcd.print("1 (Easy)");
-      break;
-    case 2:
-      lcd.print("2 (Medium)");
-      break;
-    case 3:
-      lcd.print("3 (Hard)");
-      break;
-    case 4:
-      lcd.print("4 (Expert)");
-      break;
-    default:
-      lcd.print("Undefined");
-      break;
+    case 1: lcd.print("1 (Easy)"); break;
+    case 2: lcd.print("2 (Medium)"); break;
+    case 3: lcd.print("3 (Hard)"); break;
+    case 4: lcd.print("4 (Expert)"); break;
+    default: lcd.print("Undefined"); break;
   }
 }
 
@@ -110,7 +115,6 @@ void updateWelcomeScroll(bool firstTime) {
   lcd.print(doubled.substring(pos, pos + LCD_COLS));
 }
 
-// Second LCD line, non-destructive: redrawn only when level changes.
 void showDifficultyLevel(int level){
   lcd.setCursor(0, 1);
   lcd.print("Level:              ");
@@ -138,7 +142,7 @@ void wakeDisplay(){
 
 void showTargetNumber(int targetNumber){
   lcd.clear();
-  lcd.setCursor(9, 1); // Random number between 1 and 9
+  lcd.setCursor(9, 1); 
   lcd.print(targetNumber);
 }
 
@@ -165,7 +169,9 @@ void showRoundWinner(int playerIndex, bool firstTime){
 }
 
 void showWinner(int playerIndex, bool firstTime){
-  static String msg = "Game Over! - The Winner is P" + String(playerIndex) + "    ";
+  static String msg;
+  if (playerIndex == 0) msg = "Game Over! - The Winner is P" + String(playerIndex) + "    ";
+  else msg = "Game Over! - The Winner is P" + String(playerIndex) + "    ";
   static String doubled = msg + msg;
   static int pos = 0;
   static unsigned long last = 0;

@@ -7,15 +7,15 @@
 #include "input.h"
 #include "output.h"
 
-#define INTRO_TIMEOUT 10000 // ms waiting for B1+B2 before deep sleep
+#define INTRO_TIMEOUT 10000 // ms di attesa per B1+B2 prima del deep sleep
 
 static int scoreP1 = 0;
 static int scoreP2 = 0;
 static int lastShownLevel = -1;
 static int targetNumber = 0;
+static unsigned long currentT1 = T1; // Valore corrente dinamico di T1 che diminuisce round dopo round
 
 static bool isFirstRoundAfterIntro = true;
-
 
 void initCore(){
   Serial.begin(9600);
@@ -34,15 +34,13 @@ void intro(){
   if (firstTime){
     Serial.println("Welcome to the React! Game. Press Buttons to Start");
     resetInput();
-    turnOffAllLeds(); // greens off, reds driven by pulse below
+    turnOffAllLeds(); 
     updateDifficultyLevel();
     lastShownLevel = getDifficultyLevel();
   }
 
-  // single-line rotating message
   updateWelcomeScroll(firstTime);
 
-  // difficulty selected with Pot
   if (firstTime){
     showDifficultyLevel(lastShownLevel);
   }
@@ -53,47 +51,64 @@ void intro(){
     showDifficultyLevel(level);
   }
 
-  // L2 and L3 fading in/out in counterphase, greens stay off
   pulseRedLedsInCounterphase(getCurrentTimeInState());
 
-  // start when BOTH buttons have been pressed
   if (areBothButtonsPressed()){
     turnOffAllLeds();
     resetScores();
     resetInput();
-    isFirstRoundAfterIntro = true; // force first-time behavior in stage1
+    
+    // Ripristina T1 al valore iniziale configurato all'avvio della partita
+    currentT1 = T1;
+    
+    isFirstRoundAfterIntro = true; 
     changeState(STAGE1_STATE);
     return;
   }
 
-  // 10 s without both buttons -> deep sleep
   if (getCurrentTimeInState() > INTRO_TIMEOUT){
     changeState(DEEP_SLEEP_STATE);
   }
 }
 
+#define ROUND_DISPLAY_TIME 2000       
+#define GAME_OVER_DISPLAY_TIME 10000  
+
 void stage1() {
   bool firstTime = isJustEnteredInState();
+  static bool falseStartOccurred = false;
+  static unsigned long falseStartTime = 0;
 
   if (firstTime) {
     Serial.println("Stage 1 started. Waiting for GO...");
 
-    // 1. Azzeramento input e pulizia display SEMPRE ad ogni ingresso
     resetInput();
     clearDisplay();
     showPlayersScore(scoreP1, scoreP2);
 
-    // 2. Mostra "Go!" se arriviamo da intro, altrimenti il display resta pulito durante l'attesa
     if (isFirstRoundAfterIntro) {
       Serial.println("First round after intro, showing GO message.");
       showGoMessage();
       isFirstRoundAfterIntro = false;
     }
 
-    // 3. Generazione e avvio del timer
     randomSeed(micros());
     unsigned long goTimeMs = random(2000, MAX_WAIT);
     startStageTimer(goTimeMs);
+
+    falseStartOccurred = false;
+    falseStartTime = 0;
+  }
+
+  // Se c'è stata una falsa partenza, attendiamo 2 secondi con il LED rosso acceso
+  if (falseStartOccurred) {
+    if (millis() - falseStartTime >= ROUND_DISPLAY_TIME) {
+      falseStartOccurred = false;
+      turnOffAllLeds();
+      clearDisplay();
+      changeState(STAGE1_STATE);
+    }
+    return;
   }
 
   if (isStageTimerExpired()) {
@@ -108,7 +123,6 @@ void stage1() {
     return;
   }
 
-  // 1. Fase di attesa casuale e controllo Falsa Partenza
   if (!isStageTimerExpired()) {
     int clicksP1 = getPlayerClicks(0);
     int clicksP2 = getPlayerClicks(1);
@@ -118,19 +132,22 @@ void stage1() {
       if (clicksP1 > 0) {
         Serial.println("Falsa partenza! Player 1");
         scoreP1--;
-        analogWrite(RED_LED_PLAYER_1, 255);
+        turnOnRedLed(1); 
       } else {
         Serial.println("Falsa partenza! Player 2");
         scoreP2--;
-        analogWrite(RED_LED_PLAYER_2, 255);
+        turnOnRedLed(2); 
       }
       resetInput();
+      showPlayersScore(scoreP1, scoreP2); 
+      
+      falseStartOccurred = true;
+      falseStartTime = millis();
       isFirstRoundAfterIntro = false;
-      changeState(STAGE1_STATE); // Riavvia lo stage per riprovare
       return;
     }
 
-    return; // Continua ad attendere lo scadere del timer
+    return; 
   }
 
   stopStageTimer();
@@ -143,15 +160,12 @@ void stage1() {
   changeState(STAGE2_STATE);
 }
 
-#define ROUND_DISPLAY_TIME 2000       // 2 secondi per il vincitore del round o penalità
-#define GAME_OVER_DISPLAY_TIME 10000  // 10 secondi per il Game Over finale
-
 void stage2() {
   bool firstTime = isJustEnteredInState();
   static bool roundEnded = false;
   static unsigned long roundEndTime = 0;
-  static int currentRoundWinner = 0; // >0 se un giocatore ha vinto il round, 0 se penalità, -1 se Game Over per timeout
-  static int gameOverWinner =     0; // Vincitore finale della partita per timeout (1, 2 o 0 per tie)
+  static int currentRoundWinner = 0; 
+  static int gameOverWinner = 0;     
 
   if (firstTime) {
     Serial.println("Stage 2 started.");
@@ -159,11 +173,10 @@ void stage2() {
     roundEnded = false;
     roundEndTime = 0;
 
-    // Avvia il timer limite del round T1
-    startStageTimer(T1);
+    // Avvia il timer con il tempo corrente T1 (che diminuisce ad ogni round completato)
+    startStageTimer(currentT1);
   }
 
-  // Gestione della pausa asincrona di fine round o fine partita
   if (roundEnded) {
     unsigned long currentDisplayTime = ROUND_DISPLAY_TIME;
 
@@ -171,10 +184,8 @@ void stage2() {
       showRoundWinner(currentRoundWinner, false);
       currentDisplayTime = ROUND_DISPLAY_TIME;
     } else if (currentRoundWinner == 0) {
-      // Penalità per click in eccesso
       currentDisplayTime = ROUND_DISPLAY_TIME;
     } else if (currentRoundWinner == -1) {
-      // Game Over finale (10 secondi)
       currentDisplayTime = GAME_OVER_DISPLAY_TIME;
       if (gameOverWinner == 0) {
         showTieGameMessage(false);
@@ -189,17 +200,30 @@ void stage2() {
       turnOffAllLeds();
       clearDisplay();
       
-      // Se è Game Over per timeout, torniamo a INTRO_STATE, altrimenti continuiamo i round
       if (currentRoundWinner == -1) {
         changeState(INTRO_STATE);
       } else {
+        // ROUND COMPLETATO CON SUCCESSO: Riduciamo T1 di un fattore F dipendente dalla difficoltà L (1..4)
+        int level = getDifficultyLevel();
+        // Calcoliamo F in base al livello (es. livello 1 -> F=200ms, livello 4 -> F=800ms)
+        unsigned long factorF = level * F; 
+        
+        if (currentT1 > factorF + 500) { // Mettiamo una soglia di sicurezza minima (es. 0,5 secondi)
+          currentT1 -= factorF;
+        } else {
+          currentT1 = 500; // Soglia minima invalicabile per il tempo di reazione
+        }
+        
+        Serial.print("Round completato. Nuovo T1 (ms): ");
+        Serial.println(currentT1);
+
         changeState(STAGE1_STATE);
       }
     }
     return;
   }
 
-  // Controllo Timeout del Round (Game Over)
+  // Controllo Timeout del Round (Nessuno ha risposto in tempo -> Game Over)
   if (isStageTimerExpired()) {
     stopStageTimer();
     Serial.println("Time's up! Game Over.");
@@ -217,45 +241,52 @@ void stage2() {
     return;
   }
 
-  // Controllo click dei giocatori...
   int clicksP1 = getPlayerClicks(0);
   int clicksP2 = getPlayerClicks(1);
 
+  // Vittoria del round per P1 (raggiunto esattamente N click)
   if (clicksP1 == targetNumber) {
     stopStageTimer();
     showRoundWinner(1, true);
     currentRoundWinner = 1;
     scoreP1++;
-    setLedState(1, true);
+    turnOnGreenLed(1); 
     roundEnded = true;
     roundEndTime = millis();
     return;
-  } else if (clicksP1 > targetNumber) {
+  } 
+  // Errore P1 (click in eccesso oltre N)
+  else if (clicksP1 > targetNumber) {
     stopStageTimer();
     Serial.println("Player 1 ha superato il target!");
     scoreP1--;
-    analogWrite(RED_LED_PLAYER_1, 255); // Accende L2 (LED rosso Player 1)
+    turnOnRedLed(1); 
+    showPlayersScore(scoreP1, scoreP2);
 
-    currentRoundWinner = 0; // Penalità
+    currentRoundWinner = 0; // Penalità (il round finisce ma T1 NON si riduce per merito)
     roundEnded = true;
     roundEndTime = millis();
     return;
   }
 
+  // Vittoria del round per P2 (raggiunto esattamente N click)
   if (clicksP2 == targetNumber) {
     stopStageTimer();
     showRoundWinner(2, true);
     currentRoundWinner = 2;
     scoreP2++;
-    setLedState(2, true); // Accende L4 (LED verde Player 2)
+    turnOnGreenLed(2); 
     roundEnded = true;
     roundEndTime = millis();
     return;
-  } else if (clicksP2 > targetNumber) {
+  } 
+  // Errore P2 (click in eccesso oltre N)
+  else if (clicksP2 > targetNumber) {
     stopStageTimer();
     Serial.println("Player 2 ha superato il target!");
     scoreP2--;
-    analogWrite(RED_LED_PLAYER_2, 255); // Accende L3 (LED rosso Player 2)
+    turnOnRedLed(2); 
+    showPlayersScore(scoreP1, scoreP2);
 
     currentRoundWinner = 0; // Penalità
     roundEnded = true;

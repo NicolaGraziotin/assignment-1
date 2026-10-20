@@ -9,7 +9,7 @@
 // pull-down wiring (idle LOW) a LOW-level wake-up would fire at once,
 // while PCINT wakes on any toggle and works in power-down.
 
-#define BOUNCING_TIME 100
+#define BOUNCING_TIME 200
 #define NUM_LEVELS 4
 
 
@@ -87,7 +87,8 @@ bool areBothButtonsPressed(){
 
 void updateDifficultyLevel(){
   int rawValue = analogRead(POTENTIOMETER);
-  int level = map(rawValue, 0, 1023, 1, NUM_LEVELS);
+  int level = map(rawValue, 0, 1000, 1, NUM_LEVELS); //POTENZIOMETRO DIFFETTOSO NON LEGGE 1023 MA SOLO FINO A 1000, QUINDI HO MODIFICATO IL MAP
+  // int level = map(rawValue, 0, 1023, 1, NUM_LEVELS);
   level = constrain(level, 1, NUM_LEVELS);
   currentDifficultyLevel = level;
 }

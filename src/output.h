@@ -3,6 +3,8 @@
 
 void initOutput();
 void setLedState(int ledIndex, bool state);
+void turnOnRedLed(int playerIndex);
+void turnOnGreenLed(int playerIndex);
 void turnOffAllLeds();
 void sleepDisplay();
 void wakeDisplay();
